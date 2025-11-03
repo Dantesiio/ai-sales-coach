@@ -1,70 +1,183 @@
-# Getting Started with Create React App
+# AI Sales Coach
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+An intelligent sales coaching bot based on Jeff Thull's **Mastering the Complex Sale** methodology. This application guides sales professionals through a comprehensive implementation plan to improve their sales approach.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- 🤖 **AI-Powered Conversations**: Uses free AI services (Hugging Face Inference API) with intelligent fallbacks
+- 📊 **Four-Stage Diagnostic Process**:
+  1. **Analyze Current State**: Identify which era of selling your company operates in
+  2. **Analyze Sales Conversations**: Evaluate your current sales approach
+  3. **Progression to Change Scale**: Understand where customers are in their buying journey
+  4. **Value Leakage Identification**: Map value across Product, Process, and Performance levels
+- 📈 **Progression Scale Visualization**: Interactive display of customer progression stages
+- 📄 **Comprehensive Report Generation**: Detailed implementation plan report with insights and recommendations
+- 💾 **Export Functionality**: Download or copy your implementation plan report
 
-### `npm start`
+## Technology Stack
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **React 19** - Modern UI framework
+- **Tailwind CSS** - Styling
+- **Lucide React** - Icons
+- **Hugging Face Inference API** - Free AI integration (no API key required)
+- **Intelligent Fallbacks** - Rule-based responses when AI is unavailable
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Getting Started
 
-### `npm test`
+### Prerequisites
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- Node.js (v14 or higher)
+- npm or yarn
 
-### `npm run build`
+### Installation
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd ai-sales-coach
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+2. Install dependencies:
+```bash
+npm install
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+3. Start the development server:
+```bash
+npm start
+```
 
-### `npm run eject`
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Optional: Enhanced AI Providers
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+The app works out of the box with Hugging Face's free API. For enhanced performance, you can optionally configure additional free AI providers:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+1. Create a `.env` file in the root directory:
+```bash
+# Optional: Add free API keys for enhanced AI performance
+REACT_APP_GROQ_API_KEY=your_groq_api_key_here
+REACT_APP_TOGETHER_API_KEY=your_together_api_key_here
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+2. Get free API keys:
+   - **Groq**: Sign up at [console.groq.com](https://console.groq.com) - Free tier available
+   - **Together.ai**: Sign up at [together.ai](https://together.ai) - Free tier available
 
-## Learn More
+3. Enable providers in `src/services/aiService.js`:
+```javascript
+groq: {
+  enabled: true, // Change to true
+  // ...
+},
+together: {
+  enabled: true, // Change to true
+  // ...
+}
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## How It Works
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Stage 1: Analyze Current State
+The bot helps you identify which of the three eras of professional selling your company operates in:
+- **Era 1 (1955)**: Persuader - Product-focused, scripted presentations
+- **Era 2 (1975)**: Problem Solver - Solution-focused, needs-based
+- **Era 3 (2000)**: Diagnostic - Value-focused, collaborative discovery
 
-### Code Splitting
+### Stage 2: Analyze Sales Conversations
+Evaluate your current sales conversations to identify characteristics that may need improvement, such as:
+- Following set scripts
+- Focusing heavily on company/solution
+- Customer defensive reactions
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Stage 3: Progression to Change Scale
+Understand where your customers are in their buying journey:
+- **Satisfied** (Life is Great) - Low probability of change
+- **Neutral** (Comfortable) - Low probability
+- **Aware** (It Could Happen) - Medium probability
+- **Concern** (It is Happening) - Medium probability
+- **Critical** (It's Costing $$$) - High probability
+- **Crisis** (Decision to Change) - High probability
 
-### Analyzing the Bundle Size
+### Stage 4: Value Leakage Identification
+Map your value proposition across three levels:
+- **Product Level**: Obvious value (speed, features, maintenance)
+- **Process Level**: Impact on organizational processes
+- **Performance Level**: Overall company performance metrics
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## AI Integration
 
-### Making a Progressive Web App
+The app uses multiple free AI providers with intelligent fallbacks:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+1. **Hugging Face Inference API** (Primary) - Free, no API key needed
+2. **Groq** (Optional) - Very fast, free tier available
+3. **Together.ai** (Optional) - Free tier available
+4. **Intelligent Fallbacks** - Rule-based responses when APIs are unavailable
 
-### Advanced Configuration
+The AI provides contextual, stage-aware responses that guide users through the diagnostic process.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Report Generation
 
-### Deployment
+After completing all stages, the app generates a comprehensive implementation plan report including:
+- Current state analysis
+- Sales conversation evaluation
+- Customer progression assessment
+- Value leakage identification
+- Key insights and recommendations
+- Next steps for implementation
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+Reports can be copied to clipboard or downloaded as text files.
 
-### `npm run build` fails to minify
+## Best Practices
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+1. **Be Honest**: The diagnostic process works best with honest, thoughtful responses
+2. **Think Deeply**: Consider your actual business situation when answering
+3. **Review the Report**: Take time to review and validate the generated report
+4. **Share with Team**: Use the report as a starting point for team discussions
+5. **Iterate**: The methodology is iterative - revisit as your approach evolves
+
+## Methodology
+
+This application is based on **Jeff Thull's Mastering the Complex Sale** methodology, which helps sales organizations:
+- Move from Era 1/2 to Era 3 (Diagnostic) selling
+- Understand customer progression to change
+- Identify and articulate value at all levels
+- Build stronger value propositions
+- Close more complex deals successfully
+
+## Development
+
+### Project Structure
+
+```
+src/
+  ├── App.js              # Main application component
+  ├── services/
+  │   └── aiService.js    # AI integration service
+  ├── index.js            # React entry point
+  └── index.css           # Global styles
+```
+
+### Available Scripts
+
+- `npm start` - Runs the app in development mode
+- `npm build` - Builds the app for production
+- `npm test` - Launches the test runner
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is open source and available for educational and commercial use.
+
+## Acknowledgments
+
+- Methodology based on Jeff Thull's "Mastering the Complex Sale"
+- AI powered by Hugging Face, Groq, and Together.ai
+- Icons by Lucide
+
+---
+
+**Built with ❤️ for sales professionals who want to master complex sales**

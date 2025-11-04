@@ -8,6 +8,7 @@ const SalesCoachBot = () => {
   const [stage, setStage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const initializedRef = useRef(false);
   
   const [diagnosticData, setDiagnosticData] = useState({
     // Action 1: Current State
@@ -36,41 +37,41 @@ const SalesCoachBot = () => {
   const stages = [
     {
       id: 'current-state',
-      title: "Action 1: Analyze Your Current State",
+      title: "Acción 1: Analizar Tu Estado Actual",
       icon: BarChart3,
       color: "bg-blue-500",
-      description: "Understanding which era of selling your company is in"
+      description: "Entendiendo en qué era de ventas se encuentra tu empresa"
     },
     {
       id: 'conversations',
-      title: "Action 2: Analyze Your Sales Conversations",
+      title: "Acción 2: Analizar Tus Conversaciones de Ventas",
       icon: MessageCircle,
       color: "bg-purple-500",
-      description: "Evaluating your current sales approach"
+      description: "Evaluando tu enfoque actual de ventas"
     },
     {
       id: 'progression',
-      title: "Action 3: Progression to Change Scale",
+      title: "Acción 3: Escala de Progresión al Cambio",
       icon: TrendingUp,
       color: "bg-green-500",
-      description: "Understanding where your customer is on the change journey"
+      description: "Entendiendo dónde se encuentra tu cliente en el viaje del cambio"
     },
     {
       id: 'value-leakage',
-      title: "Action 4: Identifying Value Leakage",
+      title: "Acción 4: Identificar la Fuga de Valor",
       icon: Target,
       color: "bg-orange-500",
-      description: "Mapping value across Product, Process, and Performance levels"
+      description: "Mapeando el valor en los niveles de Producto, Proceso y Rendimiento"
     }
   ];
 
   const progressionScale = [
-    { stage: 'Satisfied', position: 'Life is Great', probability: 'Low' },
-    { stage: 'Neutral', position: 'Comfortable', probability: 'Low' },
-    { stage: 'Aware', position: 'It Could Happen', probability: 'Medium' },
-    { stage: 'Concern', position: 'It is Happening', probability: 'Medium' },
-    { stage: 'Critical', position: "It's Costing $$$", probability: 'High' },
-    { stage: 'Crisis', position: 'Decision to Change', probability: 'High' }
+    { stage: 'Satisfecho', position: 'La Vida es Genial', probability: 'Baja' },
+    { stage: 'Neutral', position: 'Cómodo', probability: 'Baja' },
+    { stage: 'Consciente', position: 'Podría Suceder', probability: 'Media' },
+    { stage: 'Preocupación', position: 'Está Sucediendo', probability: 'Media' },
+    { stage: 'Crítico', position: 'Está Costando $$$', probability: 'Alta' },
+    { stage: 'Crisis', position: 'Decisión de Cambiar', probability: 'Alta' }
   ];
 
   const scrollToBottom = () => {
@@ -82,14 +83,15 @@ const SalesCoachBot = () => {
   }, [messages]);
 
   useEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 && !initializedRef.current) {
+      initializedRef.current = true;
       initializeConversation();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const initializeConversation = () => {
-    const welcomeMessage = "Hello! I'm your AI Sales Coach, based on Jeff Thull's Mastering the Complex Sale methodology. I'll guide you through creating an effective Implementation Plan for your organization.\n\nLet's start by understanding your current sales approach. This will help us identify opportunities for improvement.\n\n**Action 1: Analyze Your Current State**\n\nThink about the three eras of professional selling:\n- **Era 1 (1955)**: Persuader - Product-focused, scripted presentations\n- **Era 2 (1975)**: Problem Solver - Solution-focused, needs-based\n- **Era 3 (2000)**: Diagnostic - Value-focused, collaborative discovery\n\nWhich era do you think your company is currently performing in?";
+    const welcomeMessage = "¡Hola! 👋 Soy tu Coach de Ventas con IA. Te voy a ayudar a mejorar tu estrategia de ventas paso a paso.\n\nEmpecemos con algo simple: ¿cómo describirías tu forma actual de vender?\n\nPor ejemplo:\n• ¿Sueles seguir un guión o script cuando hablas con clientes?\n• ¿Te enfocas más en explicar tu producto o en entender las necesidades del cliente?\n• ¿Cómo sueles iniciar tus conversaciones de venta?";
     addBotMessage(welcomeMessage);
   };
 
@@ -116,7 +118,7 @@ const SalesCoachBot = () => {
     const context = `Current Stage: ${stages[stage].title}\n\nRecent conversation:\n${recentMessages}\n\nDiagnostic data collected so far: ${JSON.stringify(diagnosticData, null, 2)}`;
 
     // Generate AI response using the AI service
-    const aiResponse = await generateAIResponse(userMessage, context, stages[stage]);
+    const aiResponse = await generateAIResponse(userMessage, context, stages[stage], diagnosticData);
     
     addBotMessage(aiResponse, 300);
     setIsLoading(false);
@@ -132,38 +134,57 @@ const SalesCoachBot = () => {
       case 'current-state':
         if (diagnosticData.currentEra === '') {
           setDiagnosticData(prev => ({ ...prev, currentEra: userInput }));
-        } else if (diagnosticData.eraIndicators === '') {
-          setDiagnosticData(prev => ({ ...prev, eraIndicators: userInput }));
+        } else if (diagnosticData.eraIndicators === '' && diagnosticData.currentEra !== '') {
+          // Only update if we have a meaningful response (not just "continuemos" or similar)
+          const userLower = userInput.toLowerCase();
+          if (!userLower.includes('continu') && !userLower.includes('siguiente') && userInput.trim().length > 5) {
+            setDiagnosticData(prev => ({ ...prev, eraIndicators: userInput }));
+          }
         }
         break;
         
       case 'conversations':
         if (diagnosticData.typicalConversation === '') {
           setDiagnosticData(prev => ({ ...prev, typicalConversation: userInput }));
-        } else {
+        } else if (diagnosticData.conversationCharacteristics.length === 0) {
           // Extract characteristics from user input
           const characteristics = [];
-          if (userInput.toLowerCase().includes('script')) characteristics.push('Set script');
-          if (userInput.toLowerCase().includes('company') || userInput.toLowerCase().includes('solution')) characteristics.push('Focus on company/solution');
-          if (userInput.toLowerCase().includes('problem') || userInput.toLowerCase().includes('situation')) characteristics.push('Focus on customer problems');
-          if (userInput.toLowerCase().includes('defensive') || userInput.toLowerCase().includes('challenge')) characteristics.push('Customer reactions');
-          setDiagnosticData(prev => ({ ...prev, conversationCharacteristics: characteristics }));
+          const userLower = userInput.toLowerCase();
+          if (userLower.includes('script') || userLower.includes('guión') || userLower.includes('guion') || userLower.includes('guion')) characteristics.push('Guión establecido');
+          if (userLower.includes('company') || userLower.includes('solution') || userLower.includes('empresa') || userLower.includes('solución')) characteristics.push('Enfoque en empresa/solución');
+          if (userLower.includes('problem') || userLower.includes('situation') || userLower.includes('problema') || userLower.includes('situación') || userLower.includes('pregunta')) characteristics.push('Enfoque en problemas del cliente');
+          if (userLower.includes('defensive') || userLower.includes('challenge') || userLower.includes('defensiva') || userLower.includes('desafío') || userLower.includes('clientes')) characteristics.push('Reacciones del cliente');
+          // If no specific characteristics found but user gave a response, mark as having some characteristics
+          if (characteristics.length === 0 && userInput.trim().length > 10) {
+            characteristics.push('Otros aspectos');
+          }
+          if (characteristics.length > 0) {
+            setDiagnosticData(prev => ({ ...prev, conversationCharacteristics: characteristics }));
+          }
         }
         break;
         
       case 'progression':
-        if (diagnosticData.customerStatements === '') {
-          setDiagnosticData(prev => ({ ...prev, customerStatements: userInput }));
-        } else if (diagnosticData.progressionStage === '') {
-          setDiagnosticData(prev => ({ ...prev, progressionStage: userInput }));
-        } else if (diagnosticData.progressionActions === '') {
-          setDiagnosticData(prev => ({ ...prev, progressionActions: userInput }));
-        } else if (diagnosticData.productValue === '') {
-          setDiagnosticData(prev => ({ ...prev, productValue: userInput }));
-        } else if (diagnosticData.processValue === '') {
-          setDiagnosticData(prev => ({ ...prev, processValue: userInput }));
-        } else if (diagnosticData.performanceValue === '') {
-          setDiagnosticData(prev => ({ ...prev, performanceValue: userInput }));
+        {
+          const userLower = userInput.toLowerCase();
+          // Skip if user just says "continuemos" or similar
+          if ((userLower.includes('continu') || userLower.includes('siguiente') || userLower.includes('ok')) && userInput.trim().length < 10) {
+            break;
+          }
+          
+          if (diagnosticData.customerStatements === '') {
+            setDiagnosticData(prev => ({ ...prev, customerStatements: userInput }));
+          } else if (diagnosticData.progressionStage === '' && userInput.trim().length > 5) {
+            setDiagnosticData(prev => ({ ...prev, progressionStage: userInput }));
+          } else if (diagnosticData.progressionActions === '' && userInput.trim().length > 5) {
+            setDiagnosticData(prev => ({ ...prev, progressionActions: userInput }));
+          } else if (diagnosticData.productValue === '' && userInput.trim().length > 5) {
+            setDiagnosticData(prev => ({ ...prev, productValue: userInput }));
+          } else if (diagnosticData.processValue === '' && userInput.trim().length > 5) {
+            setDiagnosticData(prev => ({ ...prev, processValue: userInput }));
+          } else if (diagnosticData.performanceValue === '' && userInput.trim().length > 5) {
+            setDiagnosticData(prev => ({ ...prev, performanceValue: userInput }));
+          }
         }
         break;
         
@@ -193,7 +214,7 @@ const SalesCoachBot = () => {
         if (diagnosticData.currentEra && diagnosticData.eraIndicators) {
           setTimeout(() => {
             setStage(1);
-            addBotMessage("**Action 2: Analyze Your Sales Conversations**\n\nNow let's look at your sales conversations. Can you describe a typical conversation you would have with a potential customer? Write it out in 1-2 paragraphs.", 2000);
+            addBotMessage("Perfecto, ya tengo una buena idea de cómo trabajas. 👍\n\nAhora hablemos de tus conversaciones. Cuando un cliente te contacta, ¿cómo suele ir esa charla? Solo cuéntame lo básico: ¿qué dices primero? ¿qué preguntas haces? ¿cómo termina normalmente?", 2000);
           }, 2000);
         }
         break;
@@ -202,7 +223,7 @@ const SalesCoachBot = () => {
         if (diagnosticData.typicalConversation && diagnosticData.conversationCharacteristics.length > 0) {
           setTimeout(() => {
             setStage(2);
-            addBotMessage("**Action 3: Evaluating Where Your Customer Is on the Progression to Change Scale**\n\nIt's important to understand where your customer is in their journey. Think of a potential customer you currently have.\n\nWrite down some things this customer said in conversations that indicate where they are in their intent to buy:", 2000);
+            addBotMessage("Genial, ya entiendo mejor tus conversaciones. 👌\n\nAhora pensemos en un cliente específico. ¿Tienes algún cliente potencial con el que estés hablando ahora? Si sí, cuéntame: ¿qué te ha dicho ese cliente? ¿Qué palabras usa? ¿Menciona que necesita algo urgente, o más bien está explorando opciones?", 2000);
           }, 2000);
         }
         break;
@@ -211,7 +232,7 @@ const SalesCoachBot = () => {
         if (diagnosticData.customerStatements && diagnosticData.progressionStage && diagnosticData.productValue && diagnosticData.processValue && diagnosticData.performanceValue) {
           setTimeout(() => {
             setStage(3);
-            addBotMessage("**Action 4: Identifying Your Value Leakage**\n\nAs the methodology illustrates, only 10% of value is captured during the sales proposal. Let's map out the value your product or service brings at different levels.\n\nWhat value does your product or service bring on the **product level** itself? (Examples: speed, features, maintenance, etc.)", 2000);
+            addBotMessage("Excelente, ya tengo una buena idea de dónde está tu cliente. 🎯\n\nAhora vamos a pensar en el valor de tu producto. Empecemos simple: ¿qué tiene tu producto que sea bueno? Por ejemplo: ¿es rápido? ¿confiable? ¿fácil de usar? Solo dime lo más importante.", 2000);
           }, 2000);
         }
         break;
@@ -231,100 +252,100 @@ const SalesCoachBot = () => {
   };
 
   const generateFinalReport = () => {
-    const report = `# 📊 IMPLEMENTATION PLAN REPORT
-*Based on Jeff Thull's Mastering the Complex Sale Methodology*
+    const report = `# 📊 INFORME DEL PLAN DE IMPLEMENTACIÓN
+*Basado en la Metodología Mastering the Complex Sale de Jeff Thull*
 
 ---
 
-## ACTION 1: CURRENT STATE ANALYSIS
+## ACCIÓN 1: ANÁLISIS DEL ESTADO ACTUAL
 
-### Current Era Assessment
-**Era Identified:** ${diagnosticData.currentEra}
+### Evaluación de la Era Actual
+**Era Identificada:** ${diagnosticData.currentEra}
 
-**Key Indicators:**
+**Indicadores Clave:**
 ${diagnosticData.eraIndicators}
 
 ---
 
-## ACTION 2: SALES CONVERSATIONS ANALYSIS
+## ACCIÓN 2: ANÁLISIS DE CONVERSACIONES DE VENTAS
 
-### Typical Conversation
+### Conversación Típica
 ${diagnosticData.typicalConversation}
 
-### Conversation Characteristics Identified
+### Características de Conversación Identificadas
 ${diagnosticData.conversationCharacteristics.length > 0 
   ? diagnosticData.conversationCharacteristics.map(c => `- ${c}`).join('\n')
-  : 'None specifically identified'}
+  : 'Ninguna específicamente identificada'}
 
-**Assessment:** ${diagnosticData.conversationCharacteristics.length > 2 
-  ? '⚠️ Your conversations may need to shift toward Era 3 (Diagnostic) approach - focus more on collaborative discovery and customer situation analysis.'
-  : '✅ Your conversations show characteristics of a more diagnostic approach.'}
+**Evaluación:** ${diagnosticData.conversationCharacteristics.length > 2 
+  ? '⚠️ Tus conversaciones pueden necesitar cambiar hacia el enfoque de Era 3 (Diagnóstico) - enfócate más en el descubrimiento colaborativo y el análisis de la situación del cliente.'
+  : '✅ Tus conversaciones muestran características de un enfoque más diagnóstico.'}
 
 ---
 
-## ACTION 3: PROGRESSION TO CHANGE SCALE
+## ACCIÓN 3: ESCALA DE PROGRESIÓN AL CAMBIO
 
-### Customer Statements
+### Declaraciones del Cliente
 ${diagnosticData.customerStatements}
 
-### Identified Stage
-**Stage:** ${diagnosticData.progressionStage}
+### Etapa Identificada
+**Etapa:** ${diagnosticData.progressionStage}
 
-### Actions to Move Customer Forward
-${diagnosticData.progressionActions || 'To be developed based on customer stage'}
+### Acciones para Avanzar al Cliente
+${diagnosticData.progressionActions || 'Por desarrollar según la etapa del cliente'}
 
-### Value Identification
+### Identificación de Valor
 
-**Product Level Value:**
+**Valor a Nivel de Producto:**
 ${diagnosticData.productValue}
 
-**Process Level Value:**
+**Valor a Nivel de Proceso:**
 ${diagnosticData.processValue}
 
-**Performance Level Value:**
+**Valor a Nivel de Rendimiento:**
 ${diagnosticData.performanceValue}
 
 ---
 
-## ACTION 4: VALUE LEAKAGE IDENTIFICATION
+## ACCIÓN 4: IDENTIFICACIÓN DE FUGA DE VALOR
 
-### Product Level Value
+### Valor a Nivel de Producto
 ${diagnosticData.productLevelValue}
 
-### Process Level Value
+### Valor a Nivel de Proceso
 ${diagnosticData.processLevelValue}
 
-### Performance Level Value
+### Valor a Nivel de Rendimiento
 ${diagnosticData.performanceLevelValue}
 
-### Expected Revenue Impact
-**Expected Additional Revenue:** ${diagnosticData.expectedRevenue}
+### Impacto de Ingresos Esperado
+**Ingresos Adicionales Esperados:** ${diagnosticData.expectedRevenue}
 
 ---
 
-## 🎯 KEY INSIGHTS & RECOMMENDATIONS
+## 🎯 INSIGHTS Y RECOMENDACIONES CLAVE
 
-1. **Era Transition:** Focus on moving from ${diagnosticData.currentEra} toward Era 3 (Diagnostic) selling approach
-2. **Customer Progression:** Customer is at ${diagnosticData.progressionStage} stage - develop strategies to move them forward
-3. **Value Articulation:** Ensure you're communicating value at all three levels (Product, Process, Performance)
-4. **Conversation Style:** Shift from ${diagnosticData.conversationCharacteristics.length > 2 ? 'scripted/presentational' : 'current'} to collaborative diagnostic conversations
-
----
-
-## 📋 NEXT STEPS
-
-1. Review and validate this assessment with your team
-2. Develop specific action items for each identified area
-3. Create customer-specific diagnostic questions based on progression stage
-4. Build value propositions that address all three levels of value
-5. Practice Era 3 diagnostic conversations with your sales team
+1. **Transición de Era:** Enfócate en avanzar de ${diagnosticData.currentEra} hacia el enfoque de ventas de Era 3 (Diagnóstico)
+2. **Progresión del Cliente:** El cliente está en la etapa ${diagnosticData.progressionStage} - desarrolla estrategias para avanzarlo
+3. **Articulación de Valor:** Asegúrate de comunicar el valor en los tres niveles (Producto, Proceso, Rendimiento)
+4. **Estilo de Conversación:** Cambia de ${diagnosticData.conversationCharacteristics.length > 2 ? 'con guión/presentacional' : 'actual'} a conversaciones diagnósticas colaborativas
 
 ---
 
-*Report generated by AI Sales Coach - Mastering the Complex Sale Implementation Plan*
-*${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}*`;
+## 📋 PRÓXIMOS PASOS
 
-    addBotMessage("🎉 **Congratulations!** You've completed the Implementation Plan. Here's your comprehensive report:", 1000);
+1. Revisa y valida esta evaluación con tu equipo
+2. Desarrolla elementos de acción específicos para cada área identificada
+3. Crea preguntas diagnósticas específicas para el cliente basadas en la etapa de progresión
+4. Construye propuestas de valor que aborden los tres niveles de valor
+5. Practica conversaciones diagnósticas de Era 3 con tu equipo de ventas
+
+---
+
+*Informe generado por Coach de Ventas con IA - Plan de Implementación Mastering the Complex Sale*
+*${new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}*`;
+
+    addBotMessage("🎉 **¡Felicidades!** Has completado el Plan de Implementación. Aquí está tu informe completo:", 1000);
       setTimeout(() => {
       setMessages(prev => [...prev, { type: 'report', text: report, timestamp: new Date() }]);
       }, 2000);
@@ -340,10 +361,10 @@ ${diagnosticData.performanceLevelValue}
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-blue-400" />
-              AI Sales Coach
+              Coach de Ventas con IA
             </h1>
             <span className="bg-slate-700 px-3 py-1 rounded-full text-sm text-slate-300">
-              Action {stage + 1} of {stages.length}
+              Acción {stage + 1} de {stages.length}
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-300">
@@ -375,15 +396,15 @@ ${diagnosticData.performanceLevelValue}
 
       {/* Progression Scale Visualization */}
       {stage === 2 && (
-        <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-3">
+          <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-3">
           <div className="max-w-4xl mx-auto">
-            <p className="text-xs text-slate-400 mb-2">Progression to Change Scale:</p>
+            <p className="text-xs text-slate-400 mb-2">Escala de Progresión al Cambio:</p>
             <div className="flex gap-1 overflow-x-auto pb-2">
               {progressionScale.map((item, idx) => (
                 <div key={idx} className="flex-shrink-0 text-center min-w-[100px]">
                   <div className={`text-xs px-2 py-1 rounded mb-1 ${
-                    item.probability === 'High' ? 'bg-red-500/20 text-red-300' :
-                    item.probability === 'Medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                    item.probability === 'Alta' ? 'bg-red-500/20 text-red-300' :
+                    item.probability === 'Media' ? 'bg-yellow-500/20 text-yellow-300' :
                     'bg-slate-700 text-slate-400'
                   }`}>
                     {item.stage}
@@ -405,14 +426,14 @@ ${diagnosticData.performanceLevelValue}
                 <div className="bg-white rounded-lg p-6 shadow-xl max-w-3xl w-full">
                   <pre className="whitespace-pre-wrap font-sans text-sm text-slate-800 leading-relaxed">{msg.text}</pre>
                   <div className="mt-4 flex gap-2">
-                  <button 
+                    <button 
                     onClick={() => {
                       navigator.clipboard.writeText(msg.text);
-                        alert('Report copied to clipboard!');
+                        alert('¡Informe copiado al portapapeles!');
                       }}
                       className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
                     >
-                      📋 Copy Report
+                      📋 Copiar Informe
                     </button>
                     <button 
                       onClick={() => {
@@ -420,12 +441,12 @@ ${diagnosticData.performanceLevelValue}
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `sales-coach-report-${new Date().toISOString().split('T')[0]}.txt`;
+                        a.download = `informe-coach-ventas-${new Date().toISOString().split('T')[0]}.txt`;
                         a.click();
                       }}
                       className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
                     >
-                      💾 Download Report
+                      💾 Descargar Informe
                   </button>
                   </div>
                 </div>
@@ -469,7 +490,7 @@ ${diagnosticData.performanceLevelValue}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder="Type your response..."
+            placeholder="Escribe tu respuesta..."
             disabled={isLoading}
             className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           />
@@ -486,7 +507,7 @@ ${diagnosticData.performanceLevelValue}
           </button>
         </div>
         <p className="text-xs text-slate-500 mt-2 text-center max-w-4xl mx-auto">
-          Powered by AI • Based on Jeff Thull's Mastering the Complex Sale
+          Potenciado por IA • Basado en Mastering the Complex Sale de Jeff Thull
         </p>
       </div>
     </div>

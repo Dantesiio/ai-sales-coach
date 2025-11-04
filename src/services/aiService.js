@@ -30,7 +30,7 @@ const AI_CONFIG = {
 /**
  * Generate AI response using available free providers
  */
-export const generateAIResponse = async (userInput, context, stageInfo) => {
+export const generateAIResponse = async (userInput, context, stageInfo, diagnosticData = {}) => {
   // Try Hugging Face first (no API key needed)
   if (AI_CONFIG.huggingFace.enabled) {
     try {
@@ -84,7 +84,7 @@ export const generateAIResponse = async (userInput, context, stageInfo) => {
             messages: [
               {
                 role: 'system',
-                content: 'You are an expert sales coach following Jeff Thull\'s Mastering the Complex Sale methodology. Provide helpful, professional guidance.'
+                content: 'Eres un coach de ventas experto siguiendo la metodología Mastering the Complex Sale de Jeff Thull. Proporciona orientación útil y profesional.'
               },
               {
                 role: 'user',
@@ -125,7 +125,7 @@ export const generateAIResponse = async (userInput, context, stageInfo) => {
             messages: [
               {
                 role: 'system',
-                content: 'You are an expert sales coach following Jeff Thull\'s Mastering the Complex Sale methodology.'
+                content: 'Eres un coach de ventas experto siguiendo la metodología Mastering the Complex Sale de Jeff Thull.'
               },
               {
                 role: 'user',
@@ -151,29 +151,29 @@ export const generateAIResponse = async (userInput, context, stageInfo) => {
   }
 
   // Intelligent fallback - rule-based responses
-  return generateIntelligentFallback(userInput, context, stageInfo);
+  return generateIntelligentFallback(userInput, context, stageInfo, diagnosticData);
 };
 
 /**
  * Build prompt for AI
  */
 const buildPrompt = (userInput, context, stageInfo) => {
-  return `You are an expert sales coach following Jeff Thull's Mastering the Complex Sale methodology. 
+  return `Eres un coach de ventas experto siguiendo la metodología Mastering the Complex Sale de Jeff Thull. 
 
-Context: ${context}
+Contexto: ${context}
 
-Current Stage: ${stageInfo?.title || 'Unknown'}
+Etapa Actual: ${stageInfo?.title || 'Desconocida'}
 
-User Response: ${userInput}
+Respuesta del Usuario: ${userInput}
 
-Provide a helpful, professional, and insightful follow-up that:
-- Acknowledges their input appropriately
-- Provides valuable insight based on the methodology
-- Asks the next logical question or provides guidance
-- Maintains a professional, coaching tone
-- Is concise (2-3 sentences max)
+Proporciona un seguimiento útil, profesional e informativo que:
+- Reconozca su entrada apropiadamente
+- Proporcione una perspectiva valiosa basada en la metodología
+- Haga la siguiente pregunta lógica o proporcione orientación
+- Mantenga un tono profesional y de coaching
+- Sea conciso (máximo 2-3 oraciones)
 
-Response:`;
+Respuesta:`;
 };
 
 /**
@@ -229,68 +229,142 @@ const fetchWithTimeout = (url, options, timeout = 10000) => {
 /**
  * Intelligent fallback responses based on context
  */
-const generateIntelligentFallback = (userInput, context, stageInfo) => {
+const generateIntelligentFallback = (userInput, context, stageInfo, diagnosticData = {}) => {
   const stageId = stageInfo?.id || '';
   const userLower = userInput.toLowerCase();
   
   // Stage-specific intelligent responses
   switch (stageId) {
     case 'current-state':
-      if (userLower.includes('era 1') || userLower.includes('persuader')) {
-        return "You've identified Era 1 (Persuader) approach. This era focuses on product features and scripted presentations. What are the main indicators that show your organization is operating in this era? For example, are your sales conversations mostly scripted, or do you focus heavily on product specifications?";
+      // First response - asking about their selling approach
+      if (!diagnosticData.currentEra) {
+        // Acknowledge their response naturally
+        if (userLower.includes('guión') || userLower.includes('guion') || userLower.includes('script')) {
+          return "Entiendo, usas guiones o scripts. Eso es común en muchas empresas. ¿Cómo te sientes con ese enfoque? ¿Sientes que te limita o que te ayuda a ser más consistente?";
+        }
+        if (userLower.includes('producto') || userLower.includes('características') || userLower.includes('features')) {
+          return "Ok, te enfocas en el producto. Eso puede funcionar bien. ¿Cómo reaccionan normalmente los clientes cuando les presentas las características? ¿Se muestran interesados o a veces se ven abrumados?";
+        }
+        if (userLower.includes('necesidad') || userLower.includes('problema') || userLower.includes('cliente')) {
+          return "Perfecto, te enfocas en las necesidades del cliente. Eso es muy bueno. ¿Cómo descubres qué necesita realmente el cliente? ¿Haces preguntas específicas o más bien escuchas lo que te dicen?";
+        }
+        // Generic acknowledgment
+        return `Entiendo, ${userInput.length < 50 ? userInput.toLowerCase() : 'tu forma de trabajar'}. Eso suena interesante. ¿Podrías contarme un ejemplo concreto? Como cuando un cliente te contacta, ¿qué es lo primero que haces o le preguntas?`;
       }
-      if (userLower.includes('era 2') || userLower.includes('problem solver')) {
-        return "Era 2 (Problem Solver) - good! This shows you're focusing on customer needs. What specific indicators demonstrate this? For instance, do you ask about customer challenges before presenting solutions?";
+      
+      // Second response - asking for indicators
+      if (!diagnosticData.eraIndicators) {
+        // Acknowledge their specific response
+        if (userLower.includes('whatsapp') || userLower.includes('mensaje') || userLower.includes('chat')) {
+          return "Ah, vendes por WhatsApp. Eso es muy común hoy en día. ¿Cómo estructuras esas conversaciones? ¿Tienes un formato que sigues o cada conversación es diferente?";
+        }
+        if (userLower.includes('necesite') || userLower.includes('necesita') || userLower.includes('adapt')) {
+          return "Me gusta eso, te adaptas a cómo el cliente necesita la solución. Eso muestra flexibilidad. ¿Cómo descubres qué es lo que realmente necesita el cliente? ¿Haces preguntas o esperas a que te lo digan?";
+        }
+        // Generic follow-up
+        return `Perfecto. Basándome en lo que me dices, parece que ${userInput.length < 60 ? 'trabajas de esa manera' : 'tienes un enfoque específico'}. ¿Hay algo específico que te gustaría mejorar en tus conversaciones de venta? O si prefieres, podemos continuar con el siguiente paso.`;
       }
-      if (userLower.includes('era 3') || userLower.includes('diagnostic')) {
-        return "Excellent! Era 3 (Diagnostic) is the most advanced approach, focusing on collaborative discovery. What practices in your organization demonstrate this diagnostic approach?";
-      }
-      return "Thank you for that insight. What are the main indicators that your organization is operating in this era? Consider things like how your sales conversations are structured, how you approach customer problems, and how you present solutions.";
+      
+      // Should have moved to next stage by now, but just in case
+      return "Gracias por compartir eso conmigo. Ya tenemos suficiente información para continuar. Pasemos al siguiente paso.";
 
     case 'conversations':
-      if (!context.includes('typicalConversation')) {
-        return "That's helpful context. Now, can you describe a typical conversation you would have with a potential customer? Write it out in 1-2 paragraphs, including how you typically open the conversation and what topics you cover.";
+      // First response - asking for typical conversation
+      if (!diagnosticData.typicalConversation) {
+        return "Perfecto. Ahora, cuéntame: cuando un cliente te contacta por primera vez, ¿cómo suele ir esa conversación? No necesitas escribir mucho, solo dime las partes más importantes. Por ejemplo: ¿qué dices primero? ¿qué preguntas haces? ¿cómo termina normalmente?";
       }
-      return "I see. Now, let's evaluate your conversation. Did you notice any of these characteristics in your description:\n- Following a set script or presentation\n- Focusing heavily on your company, solution, or customer's future\n- Spending time clarifying the customer's business situation and problems\n- Customers reacting defensively or challenging your recommendations\n\nWhich of these apply to your conversations?";
+      
+      // Second response - asking about characteristics
+      if (diagnosticData.conversationCharacteristics.length === 0) {
+        // Acknowledge their description
+        if (userLower.includes('pregunta') || userLower.includes('preguntar')) {
+          return "Me gusta que hagas preguntas. Eso es clave. ¿Qué tipo de preguntas haces? ¿Son sobre el problema del cliente, sobre su situación actual, o más sobre lo que están buscando?";
+        }
+        if (userLower.includes('present') || userLower.includes('muestr') || userLower.includes('explic')) {
+          return "Entiendo, presentas o muestras tu solución. Eso está bien. ¿Cuándo lo haces? ¿Primero escuchas al cliente o empiezas presentando?";
+        }
+        // Generic follow-up
+        return "Gracias por compartir eso. Me ayuda a entender mejor tu estilo. ¿Hay algo de esa conversación que sientes que podría mejorar? O si está funcionando bien, ¿qué crees que es lo que más te funciona?";
+      }
+      
+      // Should have moved to next stage
+      return "Perfecto, ya tenemos suficiente información sobre tus conversaciones. Pasemos al siguiente tema.";
 
     case 'progression':
-      if (!context.includes('customerStatements')) {
-        return "Good. Think of a potential customer you currently have. Write down some things this customer said in conversations that indicate where they are in their intent to buy. For example, are they satisfied with the status quo, or are they aware of problems?";
+      // First - asking for customer statements
+      if (!diagnosticData.customerStatements) {
+        // Acknowledge urgency or need
+        if (userLower.includes('urgent') || userLower.includes('urgente') || userLower.includes('necesito') || userLower.includes('necesita')) {
+          return "Ok, veo que hay urgencia o necesidad. Eso es importante. ¿Qué tan urgente es para ellos? ¿Es algo que tienen que resolver ya, o es más algo que quieren resolver pronto?";
+        }
+        if (userLower.includes('fácil') || userLower.includes('facil') || userLower.includes('mejor') || userLower.includes('simplif')) {
+          return "Entiendo, buscan algo que les facilite las cosas. Eso es bueno. ¿Qué tan conscientes están del problema actual? ¿Saben exactamente qué les está costando no tenerlo, o más bien es una idea de que sería mejor?";
+        }
+        // Generic acknowledgment
+        return `Interesante. ${userInput.length < 50 ? 'Eso me ayuda a entender' : 'Basándome en eso'}. ¿Puedes contarme más sobre qué dice exactamente ese cliente? ¿Qué palabras o frases usa cuando habla contigo?`;
       }
-      if (!context.includes('progressionStage')) {
-        return "Based on what you've shared, where do you think this customer is on the Progression of Change scale?\n\nOptions: Satisfied (Life is Great), Neutral (Comfortable), Aware (It Could Happen), Concern (It is Happening), Critical (It's Costing $$$), or Crisis (Decision to Change)";
+      
+      // Second - asking for progression stage
+      if (!diagnosticData.progressionStage) {
+        // Help them identify the stage based on what they said
+        if (userLower.includes('urgent') || userLower.includes('costando') || userLower.includes('perdiendo')) {
+          return "Basándome en lo que me dices, parece que este cliente está en una etapa más avanzada, probablemente en 'Crítico' o 'Crisis'. ¿Sientes que están listos para tomar una decisión pronto, o aún están evaluando?";
+        }
+        if (userLower.includes('podría') || userLower.includes('tal vez') || userLower.includes('pensar')) {
+          return "Ok, suena más como que están en una etapa temprana, quizás 'Consciente' o 'Preocupación'. ¿Están más explorando ideas o ya están buscando activamente una solución?";
+        }
+        // Generic question
+        return "Perfecto. Basándome en todo lo que me has contado sobre este cliente, ¿cómo describirías su nivel de urgencia? ¿Es algo que quieren resolver ya, o más bien algo que están considerando?";
       }
-      if (!context.includes('progressionActions')) {
-        return "Excellent assessment. What specific actions could you take to move this customer one or two stages forward on the progression scale? Think about diagnostic questions, value discovery, or risk awareness.";
+      
+      // Third - asking for actions
+      if (!diagnosticData.progressionActions) {
+        return "Bien, ya sabemos dónde está el cliente. Ahora la pregunta clave: ¿qué podrías hacer para ayudarlo a avanzar? No tiene que ser complicado, solo piensa: ¿qué pregunta o información le ayudaría a entender mejor el valor de tu solución?";
       }
-      if (!context.includes('productValue')) {
-        return "Now let's identify value at different levels. What value does your product or service bring on the **product level** itself? (Examples: speed, features, maintenance, reliability, etc.)";
+      
+      // Fourth - asking for product value
+      if (!diagnosticData.productValue) {
+        return "Ahora pensemos en el valor de tu producto. Empecemos simple: ¿qué tiene tu producto o servicio que sea bueno? Por ejemplo: ¿es rápido? ¿confiable? ¿fácil de usar? ¿qué características destacan?";
       }
-      if (!context.includes('processValue')) {
-        return "Good. What value does your product or service bring on the **process level**? What processes in an organization will your product impact, and how?";
+      
+      // Fifth - asking for process value
+      if (!diagnosticData.processValue) {
+        return "Bien. Ahora, cuando alguien usa tu producto, ¿qué cambia en su forma de trabajar? Por ejemplo: ¿ahorra tiempo? ¿reduce errores? ¿simplifica algún proceso? ¿qué impacto tiene en su día a día?";
       }
-      if (!context.includes('performanceValue')) {
-        return "Excellent. What value does your product or service bring on the **performance level**? Once your product affects processes, how does that tie into the overall company's performance metrics?";
+      
+      // Sixth - asking for performance value
+      if (!diagnosticData.performanceValue) {
+        return "Excelente. Última pregunta sobre valor: cuando todo eso se suma, ¿cómo afecta a la empresa en general? Por ejemplo: ¿genera más ingresos? ¿reduce costos? ¿mejora la satisfacción de clientes? ¿qué impacto tiene a nivel de toda la organización?";
       }
-      return "Thank you for that information. Let's continue.";
+      
+      // Should have moved to next stage
+      return "Perfecto, ya tenemos suficiente información sobre el valor. Pasemos al siguiente paso.";
 
     case 'value-leakage':
-      if (!context.includes('productLevelValue')) {
-        return "Great! Let's map out value leakage. What value does your product or service bring on the **product level** itself? This is the obvious level - examples: speed, features, maintenance requirements, etc.";
+      // First - product level
+      if (!diagnosticData.productLevelValue) {
+        return "Perfecto, estamos en la última parte. Vamos a pensar en el valor de tu producto de manera simple. Empecemos: ¿qué tiene tu producto que sea bueno en sí mismo? Por ejemplo: ¿es rápido? ¿confiable? ¿tiene características especiales? Solo dime lo más importante.";
       }
-      if (!context.includes('processLevelValue')) {
-        return "Perfect. What value does your product or service bring on the **process level**? What processes in an organization will your product or service impact? What potential ways can it impact the processes that surround that specific process?";
+      
+      // Second - process level
+      if (!diagnosticData.processLevelValue) {
+        return "Bien. Ahora pensemos en cómo tu producto afecta la forma de trabajar. Cuando alguien lo usa, ¿qué cambia en sus procesos? Por ejemplo: ¿las cosas se hacen más rápido? ¿con menos errores? ¿de manera más simple?";
       }
-      if (!context.includes('performanceLevelValue')) {
-        return "Excellent. What value does your product or service bring on the **performance level**? Once your product value affects the processes in a company, how does that tie into the overall company's performance? (Think: revenue, profitability, market share, customer satisfaction, etc.)";
+      
+      // Third - performance level
+      if (!diagnosticData.performanceLevelValue) {
+        return "Excelente. Y cuando todo eso se suma, ¿qué impacto tiene en el negocio completo? Por ejemplo: ¿generan más dinero? ¿gastan menos? ¿venden más? ¿mejoran en algo importante para la empresa?";
       }
-      if (!context.includes('expectedRevenue')) {
-        return "Perfect! How much extra revenue do you expect to generate after fully implementing this plan?\n\nOptions: <$50k, $50k-$100k, $100k-$250k, $250k-$500k, $500k-$1MM, or >$1MM";
+      
+      // Fourth - expected revenue
+      if (!diagnosticData.expectedRevenue) {
+        return "Última pregunta: si todo esto funciona bien, ¿cuánto dinero adicional crees que podrías generar? No tiene que ser exacto, solo una idea aproximada. Por ejemplo: menos de $50k, entre $50k y $100k, más de $100k, etc.";
       }
-      return "Thank you for completing the assessment!";
+      
+      return "¡Perfecto! Ya tenemos toda la información que necesitamos. En un momento te voy a generar tu informe completo.";
 
     default:
-      return "Thank you for that information. Let's continue exploring to build your implementation plan.";
+      return "Gracias por esa información. Continuemos explorando para construir tu plan de implementación.";
   }
 };
 

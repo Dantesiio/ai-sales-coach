@@ -3,6 +3,8 @@
  * Supports multiple free AI providers with intelligent fallbacks
  */
 
+import { getRelevantKnowledge } from './knowledgeService';
+
 // Alternative free AI providers (you can add API keys if needed, but fallbacks work without)
 const AI_CONFIG = {
   // Hugging Face - free, no API key needed for public models
@@ -31,6 +33,8 @@ const AI_CONFIG = {
  * Generate AI response using available free providers
  */
 export const generateAIResponse = async (userInput, context, stageInfo, diagnosticData = {}) => {
+  const knowledgeSnippet = getRelevantKnowledge({ userInput, stageInfo, diagnosticData });
+
   // Try Hugging Face first (no API key needed)
   if (AI_CONFIG.huggingFace.enabled) {
     try {
@@ -42,7 +46,7 @@ export const generateAIResponse = async (userInput, context, stageInfo, diagnost
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            inputs: buildPrompt(userInput, context, stageInfo),
+            inputs: buildPrompt(userInput, context, stageInfo, knowledgeSnippet),
             parameters: {
               max_new_tokens: 200,
               temperature: 0.7,
@@ -88,7 +92,7 @@ export const generateAIResponse = async (userInput, context, stageInfo, diagnost
               },
               {
                 role: 'user',
-                content: buildPrompt(userInput, context, stageInfo)
+                content: buildPrompt(userInput, context, stageInfo, knowledgeSnippet)
               }
             ],
             max_tokens: 200,
@@ -129,7 +133,7 @@ export const generateAIResponse = async (userInput, context, stageInfo, diagnost
               },
               {
                 role: 'user',
-                content: buildPrompt(userInput, context, stageInfo)
+                content: buildPrompt(userInput, context, stageInfo, knowledgeSnippet)
               }
             ],
             max_tokens: 200,
@@ -151,16 +155,24 @@ export const generateAIResponse = async (userInput, context, stageInfo, diagnost
   }
 
   // Intelligent fallback - rule-based responses
-  return generateIntelligentFallback(userInput, context, stageInfo, diagnosticData);
+  return generateIntelligentFallback(userInput, context, stageInfo, diagnosticData, knowledgeSnippet);
 };
 
 /**
  * Build prompt for AI
  */
-const buildPrompt = (userInput, context, stageInfo) => {
+const buildPrompt = (userInput, context, stageInfo, knowledgeSnippet = '') => {
+  const knowledgeSection = knowledgeSnippet
+    ? `Información de referencia basada en documentos expertos:
+${knowledgeSnippet}
+
+`
+    : '';
+
   return `Eres un coach de ventas experto siguiendo la metodología Mastering the Complex Sale de Jeff Thull. 
 
-Contexto: ${context}
+${knowledgeSection}Contexto de la conversación:
+${context}
 
 Etapa Actual: ${stageInfo?.title || 'Desconocida'}
 
@@ -229,9 +241,14 @@ const fetchWithTimeout = (url, options, timeout = 10000) => {
 /**
  * Intelligent fallback responses based on context
  */
-const generateIntelligentFallback = (userInput, context, stageInfo, diagnosticData = {}) => {
+const generateIntelligentFallback = (userInput, context, stageInfo, diagnosticData = {}, knowledgeSnippet = '') => {
   const stageId = stageInfo?.id || '';
   const userLower = userInput.toLowerCase();
+  const appendKnowledge = (text) =>
+    knowledgeSnippet ? `${text}
+
+Dato útil de referencia:
+${knowledgeSnippet}` : text;
   
   // Stage-specific intelligent responses
   switch (stageId) {
@@ -240,131 +257,131 @@ const generateIntelligentFallback = (userInput, context, stageInfo, diagnosticDa
       if (!diagnosticData.currentEra) {
         // Acknowledge their response naturally
         if (userLower.includes('guión') || userLower.includes('guion') || userLower.includes('script')) {
-          return "Entiendo, usas guiones o scripts. Eso es común en muchas empresas. ¿Cómo te sientes con ese enfoque? ¿Sientes que te limita o que te ayuda a ser más consistente?";
+          return appendKnowledge("Entiendo, usas guiones o scripts. Eso es común en muchas empresas. ¿Cómo te sientes con ese enfoque? ¿Sientes que te limita o que te ayuda a ser más consistente?");
         }
         if (userLower.includes('producto') || userLower.includes('características') || userLower.includes('features')) {
-          return "Ok, te enfocas en el producto. Eso puede funcionar bien. ¿Cómo reaccionan normalmente los clientes cuando les presentas las características? ¿Se muestran interesados o a veces se ven abrumados?";
+          return appendKnowledge("Ok, te enfocas en el producto. Eso puede funcionar bien. ¿Cómo reaccionan normalmente los clientes cuando les presentas las características? ¿Se muestran interesados o a veces se ven abrumados?");
         }
         if (userLower.includes('necesidad') || userLower.includes('problema') || userLower.includes('cliente')) {
-          return "Perfecto, te enfocas en las necesidades del cliente. Eso es muy bueno. ¿Cómo descubres qué necesita realmente el cliente? ¿Haces preguntas específicas o más bien escuchas lo que te dicen?";
+          return appendKnowledge("Perfecto, te enfocas en las necesidades del cliente. Eso es muy bueno. ¿Cómo descubres qué necesita realmente el cliente? ¿Haces preguntas específicas o más bien escuchas lo que te dicen?");
         }
         // Generic acknowledgment
-        return `Entiendo, ${userInput.length < 50 ? userInput.toLowerCase() : 'tu forma de trabajar'}. Eso suena interesante. ¿Podrías contarme un ejemplo concreto? Como cuando un cliente te contacta, ¿qué es lo primero que haces o le preguntas?`;
+        return appendKnowledge(`Entiendo, ${userInput.length < 50 ? userInput.toLowerCase() : 'tu forma de trabajar'}. Eso suena interesante. ¿Podrías contarme un ejemplo concreto? Como cuando un cliente te contacta, ¿qué es lo primero que haces o le preguntas?`);
       }
       
       // Second response - asking for indicators
       if (!diagnosticData.eraIndicators) {
         // Acknowledge their specific response
         if (userLower.includes('whatsapp') || userLower.includes('mensaje') || userLower.includes('chat')) {
-          return "Ah, vendes por WhatsApp. Eso es muy común hoy en día. ¿Cómo estructuras esas conversaciones? ¿Tienes un formato que sigues o cada conversación es diferente?";
+          return appendKnowledge("Ah, vendes por WhatsApp. Eso es muy común hoy en día. ¿Cómo estructuras esas conversaciones? ¿Tienes un formato que sigues o cada conversación es diferente?");
         }
         if (userLower.includes('necesite') || userLower.includes('necesita') || userLower.includes('adapt')) {
-          return "Me gusta eso, te adaptas a cómo el cliente necesita la solución. Eso muestra flexibilidad. ¿Cómo descubres qué es lo que realmente necesita el cliente? ¿Haces preguntas o esperas a que te lo digan?";
+          return appendKnowledge("Me gusta eso, te adaptas a cómo el cliente necesita la solución. Eso muestra flexibilidad. ¿Cómo descubres qué es lo que realmente necesita el cliente? ¿Haces preguntas o esperas a que te lo digan?");
         }
         // Generic follow-up
-        return `Perfecto. Basándome en lo que me dices, parece que ${userInput.length < 60 ? 'trabajas de esa manera' : 'tienes un enfoque específico'}. ¿Hay algo específico que te gustaría mejorar en tus conversaciones de venta? O si prefieres, podemos continuar con el siguiente paso.`;
+        return appendKnowledge(`Perfecto. Basándome en lo que me dices, parece que ${userInput.length < 60 ? 'trabajas de esa manera' : 'tienes un enfoque específico'}. ¿Hay algo específico que te gustaría mejorar en tus conversaciones de venta? O si prefieres, podemos continuar con el siguiente paso.`);
       }
       
       // Should have moved to next stage by now, but just in case
-      return "Gracias por compartir eso conmigo. Ya tenemos suficiente información para continuar. Pasemos al siguiente paso.";
+      return appendKnowledge("Gracias por compartir eso conmigo. Ya tenemos suficiente información para continuar. Pasemos al siguiente paso.");
 
     case 'conversations':
       // First response - asking for typical conversation
       if (!diagnosticData.typicalConversation) {
-        return "Perfecto. Ahora, cuéntame: cuando un cliente te contacta por primera vez, ¿cómo suele ir esa conversación? No necesitas escribir mucho, solo dime las partes más importantes. Por ejemplo: ¿qué dices primero? ¿qué preguntas haces? ¿cómo termina normalmente?";
+        return appendKnowledge("Perfecto. Ahora, cuéntame: cuando un cliente te contacta por primera vez, ¿cómo suele ir esa conversación? No necesitas escribir mucho, solo dime las partes más importantes. Por ejemplo: ¿qué dices primero? ¿qué preguntas haces? ¿cómo termina normalmente?");
       }
       
       // Second response - asking about characteristics
       if (diagnosticData.conversationCharacteristics.length === 0) {
         // Acknowledge their description
         if (userLower.includes('pregunta') || userLower.includes('preguntar')) {
-          return "Me gusta que hagas preguntas. Eso es clave. ¿Qué tipo de preguntas haces? ¿Son sobre el problema del cliente, sobre su situación actual, o más sobre lo que están buscando?";
+          return appendKnowledge("Me gusta que hagas preguntas. Eso es clave. ¿Qué tipo de preguntas haces? ¿Son sobre el problema del cliente, sobre su situación actual, o más sobre lo que están buscando?");
         }
         if (userLower.includes('present') || userLower.includes('muestr') || userLower.includes('explic')) {
-          return "Entiendo, presentas o muestras tu solución. Eso está bien. ¿Cuándo lo haces? ¿Primero escuchas al cliente o empiezas presentando?";
+          return appendKnowledge("Entiendo, presentas o muestras tu solución. Eso está bien. ¿Cuándo lo haces? ¿Primero escuchas al cliente o empiezas presentando?");
         }
         // Generic follow-up
-        return "Gracias por compartir eso. Me ayuda a entender mejor tu estilo. ¿Hay algo de esa conversación que sientes que podría mejorar? O si está funcionando bien, ¿qué crees que es lo que más te funciona?";
+        return appendKnowledge("Gracias por compartir eso. Me ayuda a entender mejor tu estilo. ¿Hay algo de esa conversación que sientes que podría mejorar? O si está funcionando bien, ¿qué crees que es lo que más te funciona?");
       }
       
       // Should have moved to next stage
-      return "Perfecto, ya tenemos suficiente información sobre tus conversaciones. Pasemos al siguiente tema.";
+      return appendKnowledge("Perfecto, ya tenemos suficiente información sobre tus conversaciones. Pasemos al siguiente tema.");
 
     case 'progression':
       // First - asking for customer statements
       if (!diagnosticData.customerStatements) {
         // Acknowledge urgency or need
         if (userLower.includes('urgent') || userLower.includes('urgente') || userLower.includes('necesito') || userLower.includes('necesita')) {
-          return "Ok, veo que hay urgencia o necesidad. Eso es importante. ¿Qué tan urgente es para ellos? ¿Es algo que tienen que resolver ya, o es más algo que quieren resolver pronto?";
+          return appendKnowledge("Ok, veo que hay urgencia o necesidad. Eso es importante. ¿Qué tan urgente es para ellos? ¿Es algo que tienen que resolver ya, o es más algo que quieren resolver pronto?");
         }
         if (userLower.includes('fácil') || userLower.includes('facil') || userLower.includes('mejor') || userLower.includes('simplif')) {
-          return "Entiendo, buscan algo que les facilite las cosas. Eso es bueno. ¿Qué tan conscientes están del problema actual? ¿Saben exactamente qué les está costando no tenerlo, o más bien es una idea de que sería mejor?";
+          return appendKnowledge("Entiendo, buscan algo que les facilite las cosas. Eso es bueno. ¿Qué tan conscientes están del problema actual? ¿Saben exactamente qué les está costando no tenerlo, o más bien es una idea de que sería mejor?");
         }
         // Generic acknowledgment
-        return `Interesante. ${userInput.length < 50 ? 'Eso me ayuda a entender' : 'Basándome en eso'}. ¿Puedes contarme más sobre qué dice exactamente ese cliente? ¿Qué palabras o frases usa cuando habla contigo?`;
+        return appendKnowledge(`Interesante. ${userInput.length < 50 ? 'Eso me ayuda a entender' : 'Basándome en eso'}. ¿Puedes contarme más sobre qué dice exactamente ese cliente? ¿Qué palabras o frases usa cuando habla contigo?`);
       }
       
       // Second - asking for progression stage
       if (!diagnosticData.progressionStage) {
         // Help them identify the stage based on what they said
         if (userLower.includes('urgent') || userLower.includes('costando') || userLower.includes('perdiendo')) {
-          return "Basándome en lo que me dices, parece que este cliente está en una etapa más avanzada, probablemente en 'Crítico' o 'Crisis'. ¿Sientes que están listos para tomar una decisión pronto, o aún están evaluando?";
+          return appendKnowledge("Basándome en lo que me dices, parece que este cliente está en una etapa más avanzada, probablemente en 'Crítico' o 'Crisis'. ¿Sientes que están listos para tomar una decisión pronto, o aún están evaluando?");
         }
         if (userLower.includes('podría') || userLower.includes('tal vez') || userLower.includes('pensar')) {
-          return "Ok, suena más como que están en una etapa temprana, quizás 'Consciente' o 'Preocupación'. ¿Están más explorando ideas o ya están buscando activamente una solución?";
+          return appendKnowledge("Ok, suena más como que están en una etapa temprana, quizás 'Consciente' o 'Preocupación'. ¿Están más explorando ideas o ya están buscando activamente una solución?");
         }
         // Generic question
-        return "Perfecto. Basándome en todo lo que me has contado sobre este cliente, ¿cómo describirías su nivel de urgencia? ¿Es algo que quieren resolver ya, o más bien algo que están considerando?";
+        return appendKnowledge("Perfecto. Basándome en todo lo que me has contado sobre este cliente, ¿cómo describirías su nivel de urgencia? ¿Es algo que quieren resolver ya, o más bien algo que están considerando?");
       }
       
       // Third - asking for actions
       if (!diagnosticData.progressionActions) {
-        return "Bien, ya sabemos dónde está el cliente. Ahora la pregunta clave: ¿qué podrías hacer para ayudarlo a avanzar? No tiene que ser complicado, solo piensa: ¿qué pregunta o información le ayudaría a entender mejor el valor de tu solución?";
+        return appendKnowledge("Bien, ya sabemos dónde está el cliente. Ahora la pregunta clave: ¿qué podrías hacer para ayudarlo a avanzar? No tiene que ser complicado, solo piensa: ¿qué pregunta o información le ayudaría a entender mejor el valor de tu solución?");
       }
       
       // Fourth - asking for product value
       if (!diagnosticData.productValue) {
-        return "Ahora pensemos en el valor de tu producto. Empecemos simple: ¿qué tiene tu producto o servicio que sea bueno? Por ejemplo: ¿es rápido? ¿confiable? ¿fácil de usar? ¿qué características destacan?";
+        return appendKnowledge("Ahora pensemos en el valor de tu producto. Empecemos simple: ¿qué tiene tu producto o servicio que sea bueno? Por ejemplo: ¿es rápido? ¿confiable? ¿fácil de usar? ¿qué características destacan?");
       }
       
       // Fifth - asking for process value
       if (!diagnosticData.processValue) {
-        return "Bien. Ahora, cuando alguien usa tu producto, ¿qué cambia en su forma de trabajar? Por ejemplo: ¿ahorra tiempo? ¿reduce errores? ¿simplifica algún proceso? ¿qué impacto tiene en su día a día?";
+        return appendKnowledge("Bien. Ahora, cuando alguien usa tu producto, ¿qué cambia en su forma de trabajar? Por ejemplo: ¿ahorra tiempo? ¿reduce errores? ¿simplifica algún proceso? ¿qué impacto tiene en su día a día?");
       }
       
       // Sixth - asking for performance value
       if (!diagnosticData.performanceValue) {
-        return "Excelente. Última pregunta sobre valor: cuando todo eso se suma, ¿cómo afecta a la empresa en general? Por ejemplo: ¿genera más ingresos? ¿reduce costos? ¿mejora la satisfacción de clientes? ¿qué impacto tiene a nivel de toda la organización?";
+        return appendKnowledge("Excelente. Última pregunta sobre valor: cuando todo eso se suma, ¿cómo afecta a la empresa en general? Por ejemplo: ¿genera más ingresos? ¿reduce costos? ¿mejora la satisfacción de clientes? ¿qué impacto tiene a nivel de toda la organización?");
       }
       
       // Should have moved to next stage
-      return "Perfecto, ya tenemos suficiente información sobre el valor. Pasemos al siguiente paso.";
+      return appendKnowledge("Perfecto, ya tenemos suficiente información sobre el valor. Pasemos al siguiente paso.");
 
     case 'value-leakage':
       // First - product level
       if (!diagnosticData.productLevelValue) {
-        return "Perfecto, estamos en la última parte. Vamos a pensar en el valor de tu producto de manera simple. Empecemos: ¿qué tiene tu producto que sea bueno en sí mismo? Por ejemplo: ¿es rápido? ¿confiable? ¿tiene características especiales? Solo dime lo más importante.";
+        return appendKnowledge("Perfecto, estamos en la última parte. Vamos a pensar en el valor de tu producto de manera simple. Empecemos: ¿qué tiene tu producto que sea bueno en sí mismo? Por ejemplo: ¿es rápido? ¿confiable? ¿tiene características especiales? Solo dime lo más importante.");
       }
       
       // Second - process level
       if (!diagnosticData.processLevelValue) {
-        return "Bien. Ahora pensemos en cómo tu producto afecta la forma de trabajar. Cuando alguien lo usa, ¿qué cambia en sus procesos? Por ejemplo: ¿las cosas se hacen más rápido? ¿con menos errores? ¿de manera más simple?";
+        return appendKnowledge("Bien. Ahora pensemos en cómo tu producto afecta la forma de trabajar. Cuando alguien lo usa, ¿qué cambia en sus procesos? Por ejemplo: ¿las cosas se hacen más rápido? ¿con menos errores? ¿de manera más simple?");
       }
       
       // Third - performance level
       if (!diagnosticData.performanceLevelValue) {
-        return "Excelente. Y cuando todo eso se suma, ¿qué impacto tiene en el negocio completo? Por ejemplo: ¿generan más dinero? ¿gastan menos? ¿venden más? ¿mejoran en algo importante para la empresa?";
+        return appendKnowledge("Excelente. Y cuando todo eso se suma, ¿qué impacto tiene en el negocio completo? Por ejemplo: ¿generan más dinero? ¿gastan menos? ¿venden más? ¿mejoran en algo importante para la empresa?");
       }
       
       // Fourth - expected revenue
       if (!diagnosticData.expectedRevenue) {
-        return "Última pregunta: si todo esto funciona bien, ¿cuánto dinero adicional crees que podrías generar? No tiene que ser exacto, solo una idea aproximada. Por ejemplo: menos de $50k, entre $50k y $100k, más de $100k, etc.";
+        return appendKnowledge("Última pregunta: si todo esto funciona bien, ¿cuánto dinero adicional crees que podrías generar? No tiene que ser exacto, solo una idea aproximada. Por ejemplo: menos de $50k, entre $50k y $100k, más de $100k, etc.");
       }
       
-      return "¡Perfecto! Ya tenemos toda la información que necesitamos. En un momento te voy a generar tu informe completo.";
+      return appendKnowledge("¡Perfecto! Ya tenemos toda la información que necesitamos. En un momento te voy a generar tu informe completo.");
 
     default:
-      return "Gracias por esa información. Continuemos explorando para construir tu plan de implementación.";
+      return appendKnowledge("Gracias por esa información. Continuemos explorando para construir tu plan de implementación.");
   }
 };
 

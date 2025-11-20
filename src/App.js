@@ -91,7 +91,7 @@ const SalesCoachBot = () => {
   }, []);
 
   const initializeConversation = () => {
-    const welcomeMessage = "¡Hola! 👋 Soy tu Coach de Ventas con IA. Te voy a ayudar a mejorar tu estrategia de ventas paso a paso.\n\nEmpecemos con algo simple: ¿cómo describirías tu forma actual de vender?\n\nPor ejemplo:\n• ¿Sueles seguir un guión o script cuando hablas con clientes?\n• ¿Te enfocas más en explicar tu producto o en entender las necesidades del cliente?\n• ¿Cómo sueles iniciar tus conversaciones de venta?";
+    const welcomeMessage = "¡Hola! 👋 Soy tu Coach de Ventas. Te ayudo a mejorar tu estrategia paso a paso.\n\nEmpecemos: ¿cómo describirías tu forma actual de vender?\n\nPor ejemplo:\n• ¿Sigues un guión o prefieres conversaciones libres?\n• ¿Te enfocas en el producto o en las necesidades del cliente?";
     addBotMessage(welcomeMessage);
   };
 
@@ -214,7 +214,7 @@ const SalesCoachBot = () => {
         if (diagnosticData.currentEra && diagnosticData.eraIndicators) {
           setTimeout(() => {
             setStage(1);
-            addBotMessage("Perfecto, ya tengo una buena idea de cómo trabajas. 👍\n\nAhora hablemos de tus conversaciones. Cuando un cliente te contacta, ¿cómo suele ir esa charla? Solo cuéntame lo básico: ¿qué dices primero? ¿qué preguntas haces? ¿cómo termina normalmente?", 2000);
+            addBotMessage("Perfecto. 👍\n\nAhora hablemos de tus conversaciones. Cuando un cliente te contacta, ¿cómo suele ir? ¿Qué dices primero?", 2000);
           }, 2000);
         }
         break;
@@ -223,7 +223,7 @@ const SalesCoachBot = () => {
         if (diagnosticData.typicalConversation && diagnosticData.conversationCharacteristics.length > 0) {
           setTimeout(() => {
             setStage(2);
-            addBotMessage("Genial, ya entiendo mejor tus conversaciones. 👌\n\nAhora pensemos en un cliente específico. ¿Tienes algún cliente potencial con el que estés hablando ahora? Si sí, cuéntame: ¿qué te ha dicho ese cliente? ¿Qué palabras usa? ¿Menciona que necesita algo urgente, o más bien está explorando opciones?", 2000);
+            addBotMessage("Genial. 👌\n\nAhora pensemos en un cliente específico. ¿Tienes algún cliente potencial ahora? ¿Qué te ha dicho? ¿Qué palabras usa?", 2000);
           }, 2000);
         }
         break;
@@ -231,8 +231,18 @@ const SalesCoachBot = () => {
       case 'progression':
         if (diagnosticData.customerStatements && diagnosticData.progressionStage && diagnosticData.productValue && diagnosticData.processValue && diagnosticData.performanceValue) {
           setTimeout(() => {
+            // Copy values from stage 3 to stage 4 to avoid asking again
+            setDiagnosticData(prev => ({
+              ...prev,
+              productLevelValue: prev.productValue,
+              processLevelValue: prev.processValue,
+              performanceLevelValue: prev.performanceValue
+            }));
             setStage(3);
-            addBotMessage("Excelente, ya tengo una buena idea de dónde está tu cliente. 🎯\n\nAhora vamos a pensar en el valor de tu producto. Empecemos simple: ¿qué tiene tu producto que sea bueno? Por ejemplo: ¿es rápido? ¿confiable? ¿fácil de usar? Solo dime lo más importante.", 2000);
+            
+            // Show the values being used
+            const summaryMessage = `Excelente. 🎯\n\nVoy a usar las respuestas que ya me diste sobre el valor:\n\n• **Valor del Producto:** ${diagnosticData.productValue}\n• **Valor del Proceso:** ${diagnosticData.processValue}\n• **Valor del Rendimiento:** ${diagnosticData.performanceValue}\n\nÚltima pregunta: si todo esto funciona bien, ¿cuánto dinero adicional crees que podrías generar? Menos de $50k, entre $50k y $100k, más de $100k?`;
+            addBotMessage(summaryMessage, 2000);
           }, 2000);
         }
         break;
@@ -251,19 +261,278 @@ const SalesCoachBot = () => {
     }
   };
 
+  // Función de análisis inteligente
+  const analyzeEra = () => {
+    const eraLower = (diagnosticData.currentEra || '').toLowerCase();
+    const indicatorsLower = (diagnosticData.eraIndicators || '').toLowerCase();
+    const combined = eraLower + ' ' + indicatorsLower;
+    
+    if (combined.includes('guión') || combined.includes('guion') || combined.includes('script') || combined.includes('present')) {
+      return {
+        era: 'Era 1 (Persuasor)',
+        score: 1,
+        strengths: ['Consistencia en el mensaje', 'Estructura clara'],
+        weaknesses: ['Falta de personalización', 'Poca adaptación al cliente'],
+        transition: 'Necesitas avanzar hacia Era 2 y 3'
+      };
+    }
+    if (combined.includes('necesidad') || combined.includes('problema') || combined.includes('cliente') || combined.includes('pregunta')) {
+      return {
+        era: 'Era 2 (Solucionador de Problemas)',
+        score: 2,
+        strengths: ['Enfoque en necesidades', 'Escucha activa'],
+        weaknesses: ['Puede limitarse a soluciones obvias', 'Falta análisis profundo del negocio'],
+        transition: 'Estás en buen camino, avanza hacia Era 3'
+      };
+    }
+    if (combined.includes('diagnóstico') || combined.includes('negocio') || combined.includes('análisis') || combined.includes('colabor')) {
+      return {
+        era: 'Era 3 (Diagnóstico)',
+        score: 3,
+        strengths: ['Análisis profundo', 'Co-creación con el cliente'],
+        weaknesses: ['Requiere más tiempo', 'Necesita habilidades avanzadas'],
+        transition: 'Excelente, mantén y profundiza este enfoque'
+      };
+    }
+    return {
+      era: 'Era Mixta o en Transición',
+      score: 1.5,
+      strengths: ['Flexibilidad'],
+      weaknesses: ['Falta de enfoque claro'],
+      transition: 'Define y consolida tu enfoque hacia Era 3'
+    };
+  };
+
+  const analyzeConversation = () => {
+    const convLower = (diagnosticData.typicalConversation || '').toLowerCase();
+    const charLower = diagnosticData.conversationCharacteristics.map(c => c.toLowerCase()).join(' ');
+    const combined = convLower + ' ' + charLower;
+    
+    const hasDiagnostic = combined.includes('pregunta') || combined.includes('problema') || combined.includes('situación');
+    const hasPresentation = combined.includes('present') || combined.includes('muestr') || combined.includes('explic');
+    const hasScript = combined.includes('guión') || combined.includes('guion') || combined.includes('script');
+    
+    let score = 0;
+    let recommendations = [];
+    
+    if (hasDiagnostic) {
+      score += 2;
+      recommendations.push('✅ Estás haciendo preguntas diagnósticas - excelente');
+    } else {
+      recommendations.push('⚠️ Agrega más preguntas de descubrimiento sobre la situación del cliente');
+    }
+    
+    if (hasPresentation && !hasDiagnostic) {
+      score -= 1;
+      recommendations.push('⚠️ Evita presentar antes de entender completamente el problema');
+    }
+    
+    if (hasScript) {
+      score -= 1;
+      recommendations.push('⚠️ Los guiones rígidos limitan la adaptación al cliente');
+    }
+    
+    return {
+      score: Math.max(0, Math.min(3, score)),
+      recommendations,
+      needsImprovement: score < 2
+    };
+  };
+
+  const analyzeProgressionStage = () => {
+    const stageLower = (diagnosticData.progressionStage || '').toLowerCase();
+    const statementsLower = (diagnosticData.customerStatements || '').toLowerCase();
+    const combined = stageLower + ' ' + statementsLower;
+    
+    let stage = 'No identificada';
+    let urgency = 'Baja';
+    let probability = 'Baja';
+    let strategies = [];
+    
+    if (combined.includes('crisis') || combined.includes('urgent') || combined.includes('urgente') || combined.includes('decidir')) {
+      stage = 'Crisis';
+      urgency = 'Muy Alta';
+      probability = 'Muy Alta';
+      strategies = [
+        'Facilita la decisión con casos de éxito similares',
+        'Proporciona garantías y reducción de riesgo',
+        'Crea urgencia positiva mostrando el costo de esperar',
+        'Simplifica el proceso de decisión'
+      ];
+    } else if (combined.includes('crítico') || combined.includes('costando') || combined.includes('perdiendo')) {
+      stage = 'Crítico';
+      urgency = 'Alta';
+      probability = 'Alta';
+      strategies = [
+        'Cuantifica el costo actual del problema',
+        'Muestra el ROI de la solución',
+        'Proporciona evidencia de resultados similares',
+        'Facilita la visualización del estado futuro'
+      ];
+    } else if (combined.includes('preocupación') || combined.includes('está sucediendo')) {
+      stage = 'Preocupación';
+      urgency = 'Media';
+      probability = 'Media';
+      strategies = [
+        'Amplifica la conciencia del problema',
+        'Muestra cómo otros han resuelto situaciones similares',
+        'Conecta el problema con impactos de negocio',
+        'Crea sentido de urgencia educativa'
+      ];
+    } else if (combined.includes('consciente') || combined.includes('podría')) {
+      stage = 'Consciente';
+      urgency = 'Media-Baja';
+      probability = 'Media';
+      strategies = [
+        'Educa sobre las consecuencias de no actuar',
+        'Comparte insights de la industria',
+        'Ayuda a visualizar el estado ideal',
+        'Construye confianza y credibilidad'
+      ];
+    } else if (combined.includes('neutral') || combined.includes('cómodo')) {
+      stage = 'Neutral';
+      urgency = 'Baja';
+      probability = 'Baja';
+      strategies = [
+        'Despierta conciencia sobre oportunidades perdidas',
+        'Comparte tendencias del mercado',
+        'Muestra casos de transformación',
+        'Construye relación a largo plazo'
+      ];
+    } else {
+      stage = 'Satisfecho';
+      urgency = 'Muy Baja';
+      probability = 'Muy Baja';
+      strategies = [
+        'Mantén relación sin presión',
+        'Comparte contenido educativo',
+        'Espera señales de cambio',
+        'Construye confianza para el futuro'
+      ];
+    }
+    
+    return { stage, urgency, probability, strategies };
+  };
+
+  const analyzeValueArticulation = () => {
+    const product = (diagnosticData.productLevelValue || diagnosticData.productValue || '').toLowerCase();
+    const process = (diagnosticData.processLevelValue || diagnosticData.processValue || '').toLowerCase();
+    const performance = (diagnosticData.performanceLevelValue || diagnosticData.performanceValue || '').toLowerCase();
+    
+    let score = 0;
+    let gaps = [];
+    let recommendations = [];
+    
+    // Analizar nivel de producto
+    if (product.length > 10) {
+      score += 1;
+      if (product.includes('rápido') || product.includes('rapido') || product.includes('confiable') || product.includes('fácil') || product.includes('facil')) {
+        recommendations.push('✅ Tienes claridad en el valor del producto');
+      }
+    } else {
+      gaps.push('Nivel de Producto');
+      recommendations.push('⚠️ Desarrolla más el valor específico del producto');
+    }
+    
+    // Analizar nivel de proceso
+    if (process.length > 10) {
+      score += 1;
+      if (process.includes('tiempo') || process.includes('error') || process.includes('proceso') || process.includes('eficien')) {
+        recommendations.push('✅ Entiendes el impacto en procesos');
+      }
+    } else {
+      gaps.push('Nivel de Proceso');
+      recommendations.push('⚠️ Profundiza en cómo tu solución mejora los procesos del cliente');
+    }
+    
+    // Analizar nivel de rendimiento
+    if (performance.length > 10) {
+      score += 1;
+      if (performance.includes('ingreso') || performance.includes('costo') || performance.includes('ganancia') || performance.includes('ahorro')) {
+        recommendations.push('✅ Conectas con métricas de negocio');
+      }
+    } else {
+      gaps.push('Nivel de Rendimiento');
+      recommendations.push('⚠️ Articula mejor el impacto en resultados de negocio');
+    }
+    
+    return {
+      score,
+      gaps,
+      recommendations,
+      isComplete: score === 3
+    };
+  };
+
   const generateFinalReport = () => {
-    const report = `# 📊 INFORME DEL PLAN DE IMPLEMENTACIÓN
+    const eraAnalysis = analyzeEra();
+    const convAnalysis = analyzeConversation();
+    const progressionAnalysis = analyzeProgressionStage();
+    const valueAnalysis = analyzeValueArticulation();
+    
+    // Build report sections
+    const dateStr = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    const generalScore = ((eraAnalysis.score / 3) * 0.4 + (convAnalysis.score / 3) * 0.3 + (valueAnalysis.score / 3) * 0.3) * 100;
+    const statusEmoji = eraAnalysis.score >= 2.5 ? '🟢 Avanzado' : eraAnalysis.score >= 1.5 ? '🟡 En Desarrollo' : '🔴 Inicial';
+    
+    let report = `# 📊 INFORME COMPLETO DEL PLAN DE IMPLEMENTACIÓN
 *Basado en la Metodología Mastering the Complex Sale de Jeff Thull*
+
+---
+
+## 📈 RESUMEN EJECUTIVO
+
+**Fecha de Análisis:** ${dateStr}
+
+**Estado General:** ${statusEmoji}
+
+**Puntuación General:** ${generalScore.toFixed(0)}/100
 
 ---
 
 ## ACCIÓN 1: ANÁLISIS DEL ESTADO ACTUAL
 
 ### Evaluación de la Era Actual
-**Era Identificada:** ${diagnosticData.currentEra}
+**Era Identificada:** ${eraAnalysis.era}
+**Era Descrita:** ${diagnosticData.currentEra}
 
 **Indicadores Clave:**
 ${diagnosticData.eraIndicators}
+
+### Análisis Detallado
+
+**Fortalezas Identificadas:**
+${eraAnalysis.strengths.map(s => `- ${s}`).join('\n')}
+
+**Áreas de Mejora:**
+${eraAnalysis.weaknesses.map(w => `- ${w}`).join('\n')}
+
+**Recomendación de Transición:**
+${eraAnalysis.transition}
+
+### Estrategia de Evolución
+
+${(() => {
+  if (eraAnalysis.score < 2) {
+    return `**Plan de Acción Inmediato:**
+1. Comienza a hacer preguntas de descubrimiento antes de presentar soluciones
+2. Enfócate en entender el negocio del cliente, no solo sus necesidades inmediatas
+3. Practica escuchar activamente y reformular lo que entiendes
+4. Desarrolla habilidades de análisis de situación`;
+  } else if (eraAnalysis.score < 3) {
+    return `**Plan de Acción de Mejora:**
+1. Profundiza en el análisis del modelo de negocio del cliente
+2. Desarrolla habilidades de cuantificación de impacto
+3. Practica la co-creación de soluciones con el cliente
+4. Construye casos de estudio que muestren transformación de negocio`;
+  } else {
+    return `**Plan de Acción de Optimización:**
+1. Refina tus técnicas de diagnóstico con métricas más precisas
+2. Desarrolla herramientas de visualización de impacto
+3. Crea procesos de seguimiento post-venta que validen el valor entregado
+4. Comparte conocimiento con tu equipo para escalar el enfoque`;
+  }
+})()}
 
 ---
 
@@ -277,9 +546,49 @@ ${diagnosticData.conversationCharacteristics.length > 0
   ? diagnosticData.conversationCharacteristics.map(c => `- ${c}`).join('\n')
   : 'Ninguna específicamente identificada'}
 
-**Evaluación:** ${diagnosticData.conversationCharacteristics.length > 2 
-  ? '⚠️ Tus conversaciones pueden necesitar cambiar hacia el enfoque de Era 3 (Diagnóstico) - enfócate más en el descubrimiento colaborativo y el análisis de la situación del cliente.'
-  : '✅ Tus conversaciones muestran características de un enfoque más diagnóstico.'}
+### Análisis de Calidad de Conversación
+
+**Puntuación:** ${convAnalysis.score}/3
+
+**Evaluación Detallada:**
+${convAnalysis.recommendations.map(r => r).join('\n')}
+
+${(() => {
+  if (convAnalysis.needsImprovement) {
+    return `### Mejoras Recomendadas para Conversaciones
+
+**Estructura de Conversación Diagnóstica:**
+1. **Apertura (Contexto):** Establece el propósito y crea confianza
+   - "Me gustaría entender mejor tu situación actual..."
+   - "¿Podrías contarme sobre..."
+
+2. **Descubrimiento (Situación):** Explora la realidad del cliente
+   - "¿Qué está pasando actualmente con...?"
+   - "¿Cómo manejas actualmente...?"
+   - "¿Qué desafíos has identificado?"
+
+3. **Implicación (Impacto):** Conecta problemas con consecuencias
+   - "¿Qué ocurre si esto continúa así?"
+   - "¿Cuánto te está costando esto actualmente?"
+   - "¿Cómo afecta esto a otros aspectos del negocio?"
+
+4. **Visualización (Futuro):** Ayuda a ver el estado ideal
+   - "¿Cómo sería si pudieras...?"
+   - "¿Qué cambiaría si...?"
+   - "¿Qué impacto tendría si...?"
+
+5. **Acuerdo (Siguiente Paso):** Cierra con acción clara
+   - "Basándome en lo que me has contado, creo que podríamos..."
+   - "¿Te parece bien si...?"`;
+  } else {
+    return `### Fortalezas de tus Conversaciones
+
+Tus conversaciones muestran buenas prácticas diagnósticas. Continúa:
+- Manteniendo el enfoque en descubrimiento
+- Haciendo preguntas abiertas
+- Escuchando activamente antes de proponer`;
+  }
+})()}
 
 ---
 
@@ -289,10 +598,68 @@ ${diagnosticData.conversationCharacteristics.length > 0
 ${diagnosticData.customerStatements}
 
 ### Etapa Identificada
-**Etapa:** ${diagnosticData.progressionStage}
+**Etapa:** ${progressionAnalysis.stage}
+**Urgencia:** ${progressionAnalysis.urgency}
+**Probabilidad de Compra:** ${progressionAnalysis.probability}
 
-### Acciones para Avanzar al Cliente
-${diagnosticData.progressionActions || 'Por desarrollar según la etapa del cliente'}
+### Análisis de la Etapa
+
+${(() => {
+  if (progressionAnalysis.stage === 'Crisis' || progressionAnalysis.stage === 'Crítico') {
+    return `**🎯 Cliente en Etapa Avanzada - Alta Probabilidad**
+
+Este cliente está en una posición donde el cambio es necesario o inminente. Tu enfoque debe ser:
+- Facilitar la decisión, no crear urgencia artificial
+- Reducir el riesgo percibido
+- Simplificar el proceso
+- Proporcionar evidencia clara de resultados`;
+  } else if (progressionAnalysis.stage === 'Preocupación' || progressionAnalysis.stage === 'Consciente') {
+    return `**🎯 Cliente en Etapa Media - Oportunidad de Desarrollo**
+
+Este cliente tiene conciencia del problema pero necesita ayuda para avanzar. Tu enfoque debe ser:
+- Amplificar la conciencia del costo de no cambiar
+- Educar sobre las consecuencias
+- Construir confianza en la solución
+- Mostrar casos similares exitosos`;
+  } else {
+    return `**🎯 Cliente en Etapa Temprana - Construcción de Relación**
+
+Este cliente aún no tiene urgencia clara. Tu enfoque debe ser:
+- Construir relación a largo plazo
+- Educar sin vender
+- Compartir insights valiosos
+- Esperar señales de cambio`;
+  }
+})()}
+
+### Estrategias Específicas para Avanzar al Cliente
+
+${progressionAnalysis.strategies.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+### Acciones Recomendadas para este Cliente
+
+${diagnosticData.progressionActions || 'Desarrolla acciones específicas basadas en las estrategias anteriores'}
+
+### Preguntas Diagnósticas Sugeridas
+
+${(() => {
+  if (progressionAnalysis.stage === 'Crisis' || progressionAnalysis.stage === 'Crítico') {
+    return `- "¿Qué pasaría si no tomas una decisión en los próximos [tiempo]?"
+- "¿Cuál es el costo de esperar un mes más?"
+- "¿Qué necesitas ver para sentirte confiado en tomar esta decisión?"
+- "¿Quién más necesita estar involucrado en esta decisión?"`;
+  } else if (progressionAnalysis.stage === 'Preocupación' || progressionAnalysis.stage === 'Consciente') {
+    return `- "¿Qué tan grande es este problema para tu negocio?"
+- "¿Cómo afecta esto a otros departamentos/áreas?"
+- "¿Qué ha intentado hacer antes para resolver esto?"
+- "¿Qué pasaría si esto empeora?"`;
+  } else {
+    return `- "¿Has notado algún cambio en [área relacionada]?"
+- "¿Cómo manejas actualmente [situación relacionada]?"
+- "¿Qué te gustaría mejorar en [área relacionada]?"
+- "¿Has considerado cómo [tendencia/tecnología] podría afectar tu negocio?"`;
+  }
+})()}
 
 ### Identificación de Valor
 
@@ -309,40 +676,332 @@ ${diagnosticData.performanceValue}
 
 ## ACCIÓN 4: IDENTIFICACIÓN DE FUGA DE VALOR
 
-### Valor a Nivel de Producto
-${diagnosticData.productLevelValue}
+### Mapa de Valor Completo
 
-### Valor a Nivel de Proceso
-${diagnosticData.processLevelValue}
+**Valor a Nivel de Producto:**
+${diagnosticData.productLevelValue || diagnosticData.productValue}
 
-### Valor a Nivel de Rendimiento
-${diagnosticData.performanceLevelValue}
+**Valor a Nivel de Proceso:**
+${diagnosticData.processLevelValue || diagnosticData.processValue}
+
+**Valor a Nivel de Rendimiento:**
+${diagnosticData.performanceLevelValue || diagnosticData.performanceValue}
 
 ### Impacto de Ingresos Esperado
 **Ingresos Adicionales Esperados:** ${diagnosticData.expectedRevenue}
 
+### Análisis de Articulación de Valor
+
+**Puntuación:** ${valueAnalysis.score}/3
+
+${(() => {
+  if (valueAnalysis.isComplete) {
+    return `✅ **Excelente:** Tienes claridad en los tres niveles de valor. Esto te permite:
+- Comunicar valor completo al cliente
+- Justificar precios premium
+- Reducir objeciones basadas en precio
+- Crear propuestas más convincentes`;
+  } else {
+    const gapsList = valueAnalysis.gaps.map(g => `- ${g}`).join('\n');
+    return `⚠️ **Oportunidad de Mejora:** Tienes ${valueAnalysis.score} de 3 niveles claramente articulados.
+
+**Niveles que necesitas desarrollar:**
+${gapsList}`;
+  }
+})()}
+
+**Recomendaciones Específicas:**
+${valueAnalysis.recommendations.map(r => r).join('\n')}
+
+### Propuesta de Valor Integrada
+
+**Cómo comunicar el valor completo:**
+
+1. **Nivel de Producto** → "Nuestro producto es ${diagnosticData.productLevelValue || diagnosticData.productValue}"
+
+2. **Nivel de Proceso** → "Esto significa que cuando lo usas, ${diagnosticData.processLevelValue || diagnosticData.processValue}"
+
+3. **Nivel de Rendimiento** → "Lo cual resulta en ${diagnosticData.performanceLevelValue || diagnosticData.performanceValue}"
+
+**Ejemplo de Propuesta Integrada:**
+"Nuestro producto es ${diagnosticData.productLevelValue || diagnosticData.productValue}. Cuando lo implementas, ${diagnosticData.processLevelValue || diagnosticData.processValue}. Esto se traduce en ${diagnosticData.performanceLevelValue || diagnosticData.performanceValue}, lo que representa un impacto estimado de ${diagnosticData.expectedRevenue} en tu negocio."
+
 ---
 
-## 🎯 INSIGHTS Y RECOMENDACIONES CLAVE
+## 🎯 ANÁLISIS ESTRATÉGICO COMPLETO
 
-1. **Transición de Era:** Enfócate en avanzar de ${diagnosticData.currentEra} hacia el enfoque de ventas de Era 3 (Diagnóstico)
-2. **Progresión del Cliente:** El cliente está en la etapa ${diagnosticData.progressionStage} - desarrolla estrategias para avanzarlo
-3. **Articulación de Valor:** Asegúrate de comunicar el valor en los tres niveles (Producto, Proceso, Rendimiento)
-4. **Estilo de Conversación:** Cambia de ${diagnosticData.conversationCharacteristics.length > 2 ? 'con guión/presentacional' : 'actual'} a conversaciones diagnósticas colaborativas
+### Fortalezas Clave Identificadas
+
+${[
+  eraAnalysis.score >= 2 ? `- Enfoque avanzado hacia Era 3 (Diagnóstico)` : null,
+  convAnalysis.score >= 2 ? `- Buenas prácticas en conversaciones diagnósticas` : null,
+  valueAnalysis.isComplete ? `- Articulación completa de valor en tres niveles` : null,
+  progressionAnalysis.probability === 'Alta' || progressionAnalysis.probability === 'Muy Alta' ? `- Cliente en etapa avanzada con alta probabilidad de compra` : null
+].filter(Boolean).map(s => s).join('\n') || '- Estás en proceso de desarrollo de tus habilidades'}
+
+### Áreas Críticas de Mejora
+
+${[
+  eraAnalysis.score < 2 ? `- Transición hacia Era 3 (Diagnóstico) - Prioridad Alta` : null,
+  convAnalysis.needsImprovement ? `- Mejora de estructura de conversaciones diagnósticas - Prioridad Alta` : null,
+  !valueAnalysis.isComplete ? `- Completar articulación de valor en los tres niveles - Prioridad Media` : null,
+  progressionAnalysis.probability === 'Baja' || progressionAnalysis.probability === 'Muy Baja' ? `- Desarrollo de estrategias para avanzar clientes en etapas tempranas - Prioridad Media` : null
+].filter(Boolean).map(s => s).join('\n') || '- Continúa desarrollando y refinando tus habilidades'}
+
+### Oportunidades de Alto Impacto
+
+1. **Comunicación de Valor:** ${valueAnalysis.isComplete ? 'Tienes una base sólida. Enfócate en personalizar la propuesta para cada cliente.' : 'Completa la articulación de los tres niveles de valor para aumentar significativamente tu capacidad de justificar precios y cerrar ventas.'}
+
+2. **Estrategia de Progresión:** ${progressionAnalysis.probability === 'Alta' || progressionAnalysis.probability === 'Muy Alta' ? 'Cliente listo para avanzar. Enfócate en facilitar la decisión y reducir riesgo percibido.' : 'Desarrolla estrategias específicas para avanzar clientes desde etapas tempranas hacia decisión.'}
+
+3. **Evolución de Enfoque:** ${eraAnalysis.score >= 2 ? 'Mantén y profundiza tu enfoque diagnóstico. Desarrolla métricas y casos de estudio.' : 'Prioriza la transición hacia Era 3. Esto transformará tu efectividad en ventas complejas.'}
 
 ---
 
-## 📋 PRÓXIMOS PASOS
+## 📋 PLAN DE ACCIÓN PRIORIZADO
 
-1. Revisa y valida esta evaluación con tu equipo
-2. Desarrolla elementos de acción específicos para cada área identificada
-3. Crea preguntas diagnósticas específicas para el cliente basadas en la etapa de progresión
-4. Construye propuestas de valor que aborden los tres niveles de valor
-5. Practica conversaciones diagnósticas de Era 3 con tu equipo de ventas
+### Acciones Inmediatas (Próximas 2 Semanas)
+
+1. **Desarrollar Preguntas Diagnósticas Específicas**
+   - Crea un banco de 10-15 preguntas para cada etapa de progresión
+   - Practica hacer preguntas de descubrimiento e implicación
+   - Documenta las respuestas y ajusta tu enfoque
+
+2. **Completar Articulación de Valor**
+   ${(() => {
+     if (!valueAnalysis.isComplete) {
+       return `   - Desarrolla el valor en los niveles faltantes: ${valueAnalysis.gaps.join(', ')}
+   - Crea ejemplos concretos y cuantificables
+   - Practica comunicar el valor en los tres niveles`;
+     } else {
+       return `   - Personaliza la propuesta de valor para cada cliente
+   - Desarrolla casos de estudio que demuestren el valor`;
+     }
+   })()}
+
+3. **Estrategia para Cliente Actual**
+   - Implementa las estrategias específicas para etapa ${progressionAnalysis.stage}
+   - Prepara las preguntas diagnósticas sugeridas
+   - Desarrolla un plan de seguimiento
+
+### Acciones a Mediano Plazo (Próximo Mes)
+
+1. **Transición hacia Era 3**
+   ${(() => {
+     if (eraAnalysis.score < 2) {
+       return `   - Capacítate en técnicas de diagnóstico de negocio
+   - Desarrolla habilidades de cuantificación de impacto
+   - Practica co-creación de soluciones con clientes`;
+     } else {
+       return `   - Refina tus técnicas de diagnóstico
+   - Desarrolla herramientas de visualización de impacto
+   - Comparte conocimiento con tu equipo`;
+     }
+   })()}
+
+2. **Optimización de Conversaciones**
+   - Graba y analiza tus conversaciones (con permiso)
+   - Identifica patrones y áreas de mejora
+   - Practica la estructura de conversación diagnóstica
+
+3. **Construcción de Casos de Estudio**
+   - Documenta resultados de clientes exitosos
+   - Cuantifica el impacto entregado
+   - Crea materiales que muestren transformación de negocio
+
+### Acciones a Largo Plazo (Próximos 3 Meses)
+
+1. **Desarrollo de Habilidades Avanzadas**
+   - Certificación en metodologías de ventas consultivas
+   - Desarrollo de habilidades de facilitación de decisiones
+   - Construcción de expertise en tu industria
+
+2. **Escalamiento del Enfoque**
+   - Comparte metodología con tu equipo
+   - Crea procesos y herramientas reutilizables
+   - Desarrolla métricas de efectividad
+
+3. **Optimización Continua**
+   - Revisa y ajusta tu enfoque mensualmente
+   - Solicita feedback de clientes
+   - Mide resultados y ajusta estrategias
+
+---
+
+## 🔍 MÉTRICAS DE SEGUIMIENTO SUGERIDAS
+
+### KPIs Recomendados
+
+1. **Efectividad de Conversaciones**
+   - Tasa de conversión de primera llamada a siguiente paso
+   - Tiempo promedio en cada etapa de progresión
+   - Calidad de información recopilada
+
+2. **Articulación de Valor**
+   - Tasa de aceptación de propuestas
+   - Reducción de objeciones basadas en precio
+   - Tiempo promedio de ciclo de venta
+
+3. **Progresión de Clientes**
+   - Porcentaje de clientes que avanzan de etapa
+   - Tiempo promedio en cada etapa
+   - Tasa de cierre por etapa
+
+4. **Evolución de Enfoque**
+   - Porcentaje de conversaciones con enfoque diagnóstico
+   - Feedback de clientes sobre el proceso
+   - Resultados de negocio (ingresos, margen, satisfacción)
+
+---
+
+## 💡 RECOMENDACIONES ESPECÍFICAS POR ÁREA
+
+### Para Mejorar Conversaciones
+
+${(() => {
+  if (convAnalysis.needsImprovement) {
+    return `1. **Estructura tus conversaciones:**
+   - Siempre comienza con contexto y propósito
+   - Dedica 60% del tiempo a descubrimiento
+   - Usa preguntas abiertas (qué, cómo, por qué)
+   - Reformula lo que escuchas para validar entendimiento
+
+2. **Desarrolla tu banco de preguntas:**
+   - Preguntas de descubrimiento: "¿Qué está pasando actualmente con...?"
+   - Preguntas de implicación: "¿Qué ocurre si esto continúa?"
+   - Preguntas de visualización: "¿Cómo sería si pudieras...?"
+
+3. **Practica la escucha activa:**
+   - Toma notas durante la conversación
+   - Haz pausas antes de responder
+   - Pide clarificación cuando no entiendas
+   - Resume lo que escuchaste antes de proponer`;
+  } else {
+    return `1. **Optimiza tus conversaciones existentes:**
+   - Mide el tiempo en cada fase
+   - Identifica oportunidades de profundizar
+   - Desarrolla preguntas más específicas por industria
+
+2. **Comparte tu conocimiento:**
+   - Capacita a otros en tu equipo
+   - Documenta mejores prácticas
+   - Crea recursos reutilizables`;
+  }
+})()}
+
+### Para Comunicar Valor Efectivamente
+
+${(() => {
+  if (!valueAnalysis.isComplete) {
+    const gapsDetails = valueAnalysis.gaps.map(gap => {
+      if (gap === 'Nivel de Producto') return `   - **Producto:** Identifica características específicas, beneficios tangibles, ventajas competitivas`;
+      if (gap === 'Nivel de Proceso') return `   - **Proceso:** Define cómo mejora flujos de trabajo, reduce tiempos, elimina errores`;
+      if (gap === 'Nivel de Rendimiento') return `   - **Rendimiento:** Cuantifica impacto en ingresos, costos, satisfacción, cuota de mercado`;
+      return '';
+    }).filter(Boolean).join('\n');
+    
+    return `1. **Completa los niveles faltantes:**
+${gapsDetails}
+
+2. **Cuantifica cuando sea posible:**
+   - Usa números específicos, no generalidades
+   - Conecta características con resultados
+   - Muestra cálculos de ROI
+
+3. **Personaliza para cada cliente:**
+   - Adapta el mensaje según la industria
+   - Enfócate en lo que más importa al cliente
+   - Usa su lenguaje y métricas`;
+  } else {
+    return `1. **Personaliza y profundiza:**
+   - Adapta la propuesta de valor para cada cliente
+   - Desarrolla casos de estudio específicos por industria
+   - Crea visualizaciones del impacto
+
+2. **Optimiza la comunicación:**
+   - Practica diferentes formas de presentar el valor
+   - Desarrolla materiales de apoyo
+   - Mide qué mensajes resuenan más`;
+  }
+})()}
+
+### Para Avanzar Clientes en la Escala de Progresión
+
+${(() => {
+  if (progressionAnalysis.probability === 'Alta' || progressionAnalysis.probability === 'Muy Alta') {
+    return `**Cliente en Etapa Avanzada - Enfócate en:**
+
+1. **Facilitar la decisión:**
+   - Simplifica el proceso de compra
+   - Proporciona garantías y reducción de riesgo
+   - Crea urgencia positiva (costo de esperar)
+
+2. **Construir confianza:**
+   - Comparte casos de éxito similares
+   - Proporciona referencias
+   - Ofrece pruebas o pilotos si es apropiado
+
+3. **Involucrar stakeholders:**
+   - Identifica todos los decisores
+   - Aborda preocupaciones de cada uno
+   - Facilita reuniones con el equipo`;
+  } else {
+    return `**Cliente en Etapa Temprana - Enfócate en:**
+
+1. **Despertar conciencia:**
+   - Educa sobre tendencias del mercado
+   - Comparte insights de la industria
+   - Muestra casos de transformación
+
+2. **Construir relación:**
+   - Proporciona valor sin vender
+   - Mantén contacto regular
+   - Comparte contenido relevante
+
+3. **Esperar señales:**
+   - Identifica triggers de cambio
+   - Establece puntos de contacto regulares
+   - Sé paciente pero presente`;
+  }
+})()}
+
+---
+
+## 🎓 RECURSOS Y PRÓXIMOS PASOS
+
+### Recursos Recomendados
+
+1. **Libros:**
+   - "Mastering the Complex Sale" - Jeff Thull
+   - "The Challenger Sale" - Matthew Dixon
+   - "SPIN Selling" - Neil Rackham
+
+2. **Habilidades a Desarrollar:**
+   - Análisis de negocio del cliente
+   - Cuantificación de impacto financiero
+   - Facilitación de decisiones complejas
+   - Comunicación de valor
+
+3. **Práctica:**
+   - Graba y revisa tus conversaciones
+   - Practica con colegas
+   - Solicita feedback de mentores
+   - Únete a comunidades de ventas consultivas
+
+### Siguiente Revisión Recomendada
+
+**Fecha sugerida:** ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+**Preparación:**
+- Documenta resultados de implementación
+- Mide métricas de seguimiento
+- Identifica nuevas áreas de mejora
+- Trae casos específicos para análisis
 
 ---
 
 *Informe generado por Coach de Ventas con IA - Plan de Implementación Mastering the Complex Sale*
+*Análisis basado en metodología de Jeff Thull y mejores prácticas de ventas consultivas*
 *${new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}*`;
 
     addBotMessage("🎉 **¡Felicidades!** Has completado el Plan de Implementación. Aquí está tu informe completo:", 1000);

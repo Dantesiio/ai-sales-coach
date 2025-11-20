@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, User, Bot, TrendingUp, Target, MessageCircle, BarChart3, Sparkles, Loader2 } from 'lucide-react';
-import { generateAIResponse } from './services/aiService';
+import { Send, User, Bot, TrendingUp, Target, MessageCircle, BarChart3, Sparkles, Loader2, Brain, FileText, ArrowLeftRight } from 'lucide-react';
+import { generateAIResponse, generateCoachResponse } from './services/aiService';
 
 const SalesCoachBot = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [stage, setStage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [coachMode, setCoachMode] = useState(false);
+  const [analysisData, setAnalysisData] = useState(null);
   const messagesEndRef = useRef(null);
   const initializedRef = useRef(false);
   
@@ -105,61 +107,82 @@ const SalesCoachBot = () => {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMessage = input.trim();
-    setMessages(prev => [...prev, { type: 'user', text: userMessage, timestamp: new Date() }]);
+    const userMessage = input.trim().toLowerCase();
+    
+    // Check if user wants to activate coach mode
+    if ((userMessage.includes('activar coach') || userMessage.includes('coach en tiempo real') || userMessage.includes('modo coach')) && !coachMode) {
+      setMessages(prev => [...prev, { type: 'user', text: input.trim(), timestamp: new Date() }]);
+      setInput('');
+      activateCoachMode();
+      return;
+    }
+
+    // If in coach mode, handle as coach question
+    if (coachMode) {
+      setMessages(prev => [...prev, { type: 'user', text: input.trim(), timestamp: new Date() }]);
+      setInput('');
+      await handleCoachQuestion(input.trim());
+      return;
+    }
+
+    // Normal diagnostic flow
+    const messageText = input.trim();
+    setMessages(prev => [...prev, { type: 'user', text: messageText, timestamp: new Date() }]);
     setInput('');
     setIsLoading(true);
 
-    // Update diagnostic data based on current stage
-    updateDiagnosticData(userMessage);
+    // Calculate updated diagnostic data synchronously
+    const updatedData = calculateUpdatedDiagnosticData(messageText, diagnosticData, stage);
 
-    // Get conversation context
+    // Get conversation context with updated data
     const recentMessages = messages.slice(-6).map(m => `${m.type === 'user' ? 'User' : 'Bot'}: ${m.text}`).join('\n');
-    const context = `Current Stage: ${stages[stage].title}\n\nRecent conversation:\n${recentMessages}\n\nDiagnostic data collected so far: ${JSON.stringify(diagnosticData, null, 2)}`;
+    const context = `Current Stage: ${stages[stage].title}\n\nRecent conversation:\n${recentMessages}\n\nDiagnostic data collected so far: ${JSON.stringify(updatedData, null, 2)}`;
 
-    // Generate AI response using the AI service
-    const aiResponse = await generateAIResponse(userMessage, context, stages[stage], diagnosticData);
+    // Update state
+    setDiagnosticData(updatedData);
+
+    // Generate AI response using the AI service with updated data
+    const aiResponse = await generateAIResponse(messageText, context, stages[stage], updatedData);
     
     addBotMessage(aiResponse, 300);
     setIsLoading(false);
 
-    // Check if we should advance to next stage
-    checkStageAdvancement();
+    // Check if we should advance to next stage (using updated data)
+    checkStageAdvancementWithData(updatedData);
   };
 
-  const updateDiagnosticData = (userInput) => {
-    const currentStage = stages[stage];
+  // Helper function to calculate updated diagnostic data synchronously
+  const calculateUpdatedDiagnosticData = (userInput, currentData, currentStageIndex) => {
+    const currentStage = stages[currentStageIndex];
+    const updated = { ...currentData };
     
     switch (currentStage.id) {
       case 'current-state':
-        if (diagnosticData.currentEra === '') {
-          setDiagnosticData(prev => ({ ...prev, currentEra: userInput }));
-        } else if (diagnosticData.eraIndicators === '' && diagnosticData.currentEra !== '') {
-          // Only update if we have a meaningful response (not just "continuemos" or similar)
+        if (updated.currentEra === '') {
+          updated.currentEra = userInput;
+        } else if (updated.eraIndicators === '' && updated.currentEra !== '') {
           const userLower = userInput.toLowerCase();
           if (!userLower.includes('continu') && !userLower.includes('siguiente') && userInput.trim().length > 5) {
-            setDiagnosticData(prev => ({ ...prev, eraIndicators: userInput }));
+            updated.eraIndicators = userInput;
           }
         }
         break;
         
       case 'conversations':
-        if (diagnosticData.typicalConversation === '') {
-          setDiagnosticData(prev => ({ ...prev, typicalConversation: userInput }));
-        } else if (diagnosticData.conversationCharacteristics.length === 0) {
-          // Extract characteristics from user input
+        if (updated.typicalConversation === '') {
+          updated.typicalConversation = userInput;
+        } else if (updated.conversationCharacteristics.length === 0) {
           const characteristics = [];
           const userLower = userInput.toLowerCase();
-          if (userLower.includes('script') || userLower.includes('guión') || userLower.includes('guion') || userLower.includes('guion')) characteristics.push('Guión establecido');
+          if (userLower.includes('script') || userLower.includes('guión') || userLower.includes('guion')) characteristics.push('Guión establecido');
           if (userLower.includes('company') || userLower.includes('solution') || userLower.includes('empresa') || userLower.includes('solución')) characteristics.push('Enfoque en empresa/solución');
           if (userLower.includes('problem') || userLower.includes('situation') || userLower.includes('problema') || userLower.includes('situación') || userLower.includes('pregunta')) characteristics.push('Enfoque en problemas del cliente');
           if (userLower.includes('defensive') || userLower.includes('challenge') || userLower.includes('defensiva') || userLower.includes('desafío') || userLower.includes('clientes')) characteristics.push('Reacciones del cliente');
-          // If no specific characteristics found but user gave a response, mark as having some characteristics
           if (characteristics.length === 0 && userInput.trim().length > 10) {
             characteristics.push('Otros aspectos');
           }
           if (characteristics.length > 0) {
-            setDiagnosticData(prev => ({ ...prev, conversationCharacteristics: characteristics }));
+            updated.conversationCharacteristics = characteristics;
           }
         }
         break;
@@ -167,51 +190,52 @@ const SalesCoachBot = () => {
       case 'progression':
         {
           const userLower = userInput.toLowerCase();
-          // Skip if user just says "continuemos" or similar
           if ((userLower.includes('continu') || userLower.includes('siguiente') || userLower.includes('ok')) && userInput.trim().length < 10) {
             break;
           }
           
-          if (diagnosticData.customerStatements === '') {
-            setDiagnosticData(prev => ({ ...prev, customerStatements: userInput }));
-          } else if (diagnosticData.progressionStage === '' && userInput.trim().length > 5) {
-            setDiagnosticData(prev => ({ ...prev, progressionStage: userInput }));
-          } else if (diagnosticData.progressionActions === '' && userInput.trim().length > 5) {
-            setDiagnosticData(prev => ({ ...prev, progressionActions: userInput }));
-          } else if (diagnosticData.productValue === '' && userInput.trim().length > 5) {
-            setDiagnosticData(prev => ({ ...prev, productValue: userInput }));
-          } else if (diagnosticData.processValue === '' && userInput.trim().length > 5) {
-            setDiagnosticData(prev => ({ ...prev, processValue: userInput }));
-          } else if (diagnosticData.performanceValue === '' && userInput.trim().length > 5) {
-            setDiagnosticData(prev => ({ ...prev, performanceValue: userInput }));
+          if (updated.customerStatements === '') {
+            updated.customerStatements = userInput;
+          } else if (updated.progressionStage === '' && userInput.trim().length > 5) {
+            updated.progressionStage = userInput;
+          } else if (updated.progressionActions === '' && userInput.trim().length > 5) {
+            updated.progressionActions = userInput;
+          } else if (updated.productValue === '' && userInput.trim().length > 5) {
+            updated.productValue = userInput;
+          } else if (updated.processValue === '' && userInput.trim().length > 5) {
+            updated.processValue = userInput;
+          } else if (updated.performanceValue === '' && userInput.trim().length > 5) {
+            updated.performanceValue = userInput;
           }
         }
         break;
         
       case 'value-leakage':
-        if (diagnosticData.productLevelValue === '') {
-          setDiagnosticData(prev => ({ ...prev, productLevelValue: userInput }));
-        } else if (diagnosticData.processLevelValue === '') {
-          setDiagnosticData(prev => ({ ...prev, processLevelValue: userInput }));
-        } else if (diagnosticData.performanceLevelValue === '') {
-          setDiagnosticData(prev => ({ ...prev, performanceLevelValue: userInput }));
-        } else {
-          setDiagnosticData(prev => ({ ...prev, expectedRevenue: userInput }));
+        if (updated.productLevelValue === '') {
+          updated.productLevelValue = userInput;
+        } else if (updated.processLevelValue === '') {
+          updated.processLevelValue = userInput;
+        } else if (updated.performanceLevelValue === '') {
+          updated.performanceLevelValue = userInput;
+        } else if (updated.expectedRevenue === '') {
+          updated.expectedRevenue = userInput;
         }
         break;
         
       default:
-        // No action needed for unknown stages
+        // No update needed for unknown stages
         break;
     }
+    
+    return updated;
   };
 
-  const checkStageAdvancement = () => {
+  const checkStageAdvancementWithData = (data) => {
     const currentStage = stages[stage];
     
     switch (currentStage.id) {
       case 'current-state':
-        if (diagnosticData.currentEra && diagnosticData.eraIndicators) {
+        if (data.currentEra && data.eraIndicators) {
           setTimeout(() => {
             setStage(1);
             addBotMessage("Perfecto. 👍\n\nAhora hablemos de tus conversaciones. Cuando un cliente te contacta, ¿cómo suele ir? ¿Qué dices primero?", 2000);
@@ -220,7 +244,7 @@ const SalesCoachBot = () => {
         break;
         
       case 'conversations':
-        if (diagnosticData.typicalConversation && diagnosticData.conversationCharacteristics.length > 0) {
+        if (data.typicalConversation && data.conversationCharacteristics.length > 0) {
           setTimeout(() => {
             setStage(2);
             addBotMessage("Genial. 👌\n\nAhora pensemos en un cliente específico. ¿Tienes algún cliente potencial ahora? ¿Qué te ha dicho? ¿Qué palabras usa?", 2000);
@@ -229,26 +253,24 @@ const SalesCoachBot = () => {
         break;
         
       case 'progression':
-        if (diagnosticData.customerStatements && diagnosticData.progressionStage && diagnosticData.productValue && diagnosticData.processValue && diagnosticData.performanceValue) {
+        if (data.customerStatements && data.progressionStage && data.productValue && data.processValue && data.performanceValue) {
           setTimeout(() => {
-            // Copy values from stage 3 to stage 4 to avoid asking again
             setDiagnosticData(prev => ({
               ...prev,
-              productLevelValue: prev.productValue,
-              processLevelValue: prev.processValue,
-              performanceLevelValue: prev.performanceValue
+              productLevelValue: data.productValue,
+              processLevelValue: data.processValue,
+              performanceLevelValue: data.performanceValue
             }));
             setStage(3);
             
-            // Show the values being used
-            const summaryMessage = `Excelente. 🎯\n\nVoy a usar las respuestas que ya me diste sobre el valor:\n\n• **Valor del Producto:** ${diagnosticData.productValue}\n• **Valor del Proceso:** ${diagnosticData.processValue}\n• **Valor del Rendimiento:** ${diagnosticData.performanceValue}\n\nÚltima pregunta: si todo esto funciona bien, ¿cuánto dinero adicional crees que podrías generar? Menos de $50k, entre $50k y $100k, más de $100k?`;
+            const summaryMessage = `Excelente. 🎯\n\nVoy a usar las respuestas que ya me diste sobre el valor:\n\n• **Valor del Producto:** ${data.productValue}\n• **Valor del Proceso:** ${data.processValue}\n• **Valor del Rendimiento:** ${data.performanceValue}\n\nÚltima pregunta: si todo esto funciona bien, ¿cuánto dinero adicional crees que podrías generar? Menos de $50k, entre $50k y $100k, más de $100k?`;
             addBotMessage(summaryMessage, 2000);
           }, 2000);
         }
         break;
         
       case 'value-leakage':
-        if (diagnosticData.productLevelValue && diagnosticData.processLevelValue && diagnosticData.performanceLevelValue && diagnosticData.expectedRevenue) {
+        if (data.productLevelValue && data.processLevelValue && data.performanceLevelValue && data.expectedRevenue) {
           setTimeout(() => {
             generateFinalReport();
           }, 2000);
@@ -260,6 +282,7 @@ const SalesCoachBot = () => {
         break;
     }
   };
+
 
   // Función de análisis inteligente
   const analyzeEra = () => {
@@ -1004,10 +1027,105 @@ ${(() => {
 *Análisis basado en metodología de Jeff Thull y mejores prácticas de ventas consultivas*
 *${new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}*`;
 
+    // Save analysis data for coach mode
+    const savedAnalysis = {
+      eraAnalysis,
+      convAnalysis,
+      progressionAnalysis,
+      valueAnalysis,
+      diagnosticData,
+      report
+    };
+    setAnalysisData(savedAnalysis);
+
     addBotMessage("🎉 **¡Felicidades!** Has completado el Plan de Implementación. Aquí está tu informe completo:", 1000);
       setTimeout(() => {
       setMessages(prev => [...prev, { type: 'report', text: report, timestamp: new Date() }]);
+      setTimeout(() => {
+        addBotMessage("💡 **¿Quieres activar el Coach en Tiempo Real?**\n\nAhora puedes hacer preguntas sobre cómo manejar clientes específicos, qué decir en diferentes situaciones, o cualquier duda sobre ventas. El coach usará tu análisis para darte recomendaciones personalizadas.\n\nEscribe 'activar coach' o haz clic en el botón para comenzar.", 3000);
       }, 2000);
+      }, 2000);
+  };
+
+  const activateCoachMode = () => {
+    setCoachMode(true);
+    setMessages(prev => [...prev, { 
+      type: 'bot', 
+      text: "🚀 **Coach en Tiempo Real Activado**\n\n¡Perfecto! Ahora puedo ayudarte con:\n\n• Qué decir a clientes en diferentes situaciones\n• Cómo manejar objeciones específicas\n• Estrategias para avanzar clientes en la escala de progresión\n• Preguntas diagnósticas personalizadas\n• Comunicación de valor efectiva\n\n¿Sobre qué cliente o situación te gustaría que te ayude? Puedes preguntarme cualquier cosa sobre ventas y usaré tu análisis para darte recomendaciones específicas.", 
+      timestamp: new Date() 
+    }]);
+  };
+
+  const switchToAnalysisMode = () => {
+    setCoachMode(false);
+    addBotMessage("📊 **Modo de Análisis Activado**\n\nHas vuelto al modo de análisis. Puedes continuar con el diagnóstico o revisar tu informe.", 0);
+  };
+
+  const toggleMode = () => {
+    // Prevent action if button is disabled
+    if (!analysisData && !coachMode) {
+      addBotMessage("⚠️ Primero necesitas completar el análisis para activar el modo coach. Continúa con el diagnóstico.", 0);
+      return;
+    }
+    
+    if (coachMode) {
+      switchToAnalysisMode();
+    } else if (analysisData) {
+      activateCoachMode();
+    }
+  };
+
+  const handleCoachQuestion = async (userInput) => {
+    if (!analysisData) {
+      addBotMessage("Lo siento, no tengo acceso a tu análisis. Por favor, completa el diagnóstico primero.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Build comprehensive, natural context for coach mode
+    const recentMessages = messages.slice(-6).filter(m => m.type !== 'report').map(m => 
+      `${m.type === 'user' ? 'Vendedor' : 'Coach'}: ${m.text}`
+    ).join('\n');
+
+    const coachContext = `Eres un coach de ventas experto y amigable. Estás ayudando a un vendedor en tiempo real usando su análisis personalizado.
+
+📊 CONTEXTO DEL VENDEDOR:
+
+**Perfil de Ventas:**
+- Nivel: ${analysisData.eraAnalysis.era} (${analysisData.eraAnalysis.score}/3)
+- Fortalezas: ${analysisData.eraAnalysis.strengths.join(', ')}
+- Áreas a mejorar: ${analysisData.eraAnalysis.weaknesses.join(', ')}
+
+**Estilo de Conversación:**
+- Calidad: ${analysisData.convAnalysis.score}/3
+- ${analysisData.convAnalysis.needsImprovement ? 'Necesita mejorar su estructura de conversación' : 'Tiene buenas prácticas conversacionales'}
+
+**Valor que puede comunicar:**
+- Producto: ${analysisData.diagnosticData.productLevelValue || analysisData.diagnosticData.productValue || 'No especificado'}
+- Proceso: ${analysisData.diagnosticData.processLevelValue || analysisData.diagnosticData.processValue || 'No especificado'}
+- Rendimiento: ${analysisData.diagnosticData.performanceLevelValue || analysisData.diagnosticData.performanceValue || 'No especificado'}
+
+**Cliente típico:**
+- Etapa: ${analysisData.progressionAnalysis.stage}
+- Urgencia: ${analysisData.progressionAnalysis.urgency}
+- Probabilidad de compra: ${analysisData.progressionAnalysis.probability}
+
+💬 CONVERSACIÓN RECIENTE:
+${recentMessages || 'Primera pregunta'}
+
+❓ PREGUNTA ACTUAL DEL VENDEDOR:
+"${userInput}"
+
+🎯 TU TAREA:
+Responde de forma natural, conversacional y práctica. Sé específico y da ejemplos concretos de QUÉ DECIR al cliente. Usa el contexto del vendedor para personalizar tu respuesta. Sé breve pero útil (2-4 oraciones). Habla como un mentor amigable, no como un robot.
+
+IMPORTANTE: Si el vendedor pregunta "qué digo" o "qué le digo", dale frases EXACTAS que puede usar. Si pregunta sobre una situación específica, dale una estrategia clara y práctica.`;
+
+    const response = await generateCoachResponse(userInput, coachContext, analysisData);
+    
+    addBotMessage(response || "No pude generar una respuesta. ¿Podrías reformular tu pregunta de otra manera?", 300);
+    setIsLoading(false);
   };
 
   const StageIcon = stages[stage]?.icon || BarChart3;
@@ -1022,19 +1140,76 @@ ${(() => {
               <Sparkles className="w-6 h-6 text-blue-400" />
               Coach de Ventas con IA
             </h1>
-            <span className="bg-slate-700 px-3 py-1 rounded-full text-sm text-slate-300">
-              Acción {stage + 1} de {stages.length}
-            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleMode();
+                }}
+                disabled={!analysisData && !coachMode}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  !analysisData && !coachMode
+                    ? 'bg-slate-600 text-slate-300 cursor-not-allowed opacity-50'
+                    : coachMode
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
+                }`}
+                title={
+                  !analysisData && !coachMode
+                    ? 'Completa el análisis para activar el Coach'
+                    : coachMode
+                    ? 'Cambiar a Modo Análisis'
+                    : 'Cambiar a Coach en Tiempo Real'
+                }
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+                {coachMode ? (
+                  <>
+                    <FileText className="w-4 h-4" />
+                    <span>Análisis</span>
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    <span>Coach</span>
+                  </>
+                )}
+              </button>
+              {coachMode ? (
+                <span className="bg-green-600 px-3 py-1 rounded-full text-sm text-white font-semibold">
+                  🚀 Coach en Tiempo Real
+                </span>
+              ) : (
+                <span className="bg-slate-700 px-3 py-1 rounded-full text-sm text-slate-300">
+                  Acción {stage + 1} de {stages.length}
+                </span>
+              )}
+            </div>
           </div>
+          {!coachMode && (
+            <>
           <div className="flex items-center gap-2 text-sm text-slate-300">
             <StageIcon className="w-4 h-4" />
             <span className="font-medium">{stages[stage]?.title}</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">{stages[stage]?.description}</p>
+            </>
+          )}
+          {coachMode && (
+            <>
+              <div className="flex items-center gap-2 text-sm text-green-300">
+                <Sparkles className="w-4 h-4" />
+                <span className="font-medium">Modo Coach Activo - Hazme cualquier pregunta sobre ventas</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Usando tu análisis personalizado para darte recomendaciones específicas</p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Progress Bar */}
+      {!coachMode && (
       <div className="bg-slate-800 px-4 pb-2">
         <div className="max-w-4xl mx-auto">
           <div className="flex gap-1">
@@ -1052,6 +1227,7 @@ ${(() => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Progression Scale Visualization */}
       {stage === 2 && (
@@ -1084,7 +1260,7 @@ ${(() => {
               {msg.type === 'report' ? (
                 <div className="bg-white rounded-lg p-6 shadow-xl max-w-3xl w-full">
                   <pre className="whitespace-pre-wrap font-sans text-sm text-slate-800 leading-relaxed">{msg.text}</pre>
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <button 
                     onClick={() => {
                       navigator.clipboard.writeText(msg.text);
@@ -1107,6 +1283,14 @@ ${(() => {
                     >
                       💾 Descargar Informe
                   </button>
+                    {!coachMode && analysisData && (
+                      <button 
+                        onClick={activateCoachMode}
+                        className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-semibold"
+                      >
+                        🚀 Activar Coach en Tiempo Real
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1149,7 +1333,7 @@ ${(() => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder="Escribe tu respuesta..."
+            placeholder={coachMode ? "Pregunta sobre clientes, qué decir, estrategias..." : "Escribe tu respuesta..."}
             disabled={isLoading}
             className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           />

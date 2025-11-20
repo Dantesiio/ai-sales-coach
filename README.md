@@ -51,30 +51,38 @@ npm start
 
 ### Optional: Enhanced AI Providers
 
-The app works out of the box with Hugging Face's free API. For enhanced performance, you can optionally configure additional free AI providers:
+The app works out of the box with Hugging Face's free API. For enhanced performance, especially in **Coach Mode**, you can optionally configure additional free AI providers:
 
 1. Create a `.env` file in the root directory:
 ```bash
-# Optional: Add free API keys for enhanced AI performance
+# Recommended: Gemini API for Coach Mode (better conversational AI)
+REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional: Other AI providers
 REACT_APP_GROQ_API_KEY=your_groq_api_key_here
 REACT_APP_TOGETHER_API_KEY=your_together_api_key_here
 ```
 
 2. Get free API keys:
+   - **Google Gemini** (Recommended for Coach Mode): 
+     - Sign up at [Google AI Studio](https://makersuite.google.com/app/apikey)
+     - Free tier: 15 requests per minute, 1,500 requests per day
+     - Best for natural, conversational responses
    - **Groq**: Sign up at [console.groq.com](https://console.groq.com) - Free tier available
    - **Together.ai**: Sign up at [together.ai](https://together.ai) - Free tier available
 
-3. Enable providers in `src/services/aiService.js`:
+3. Gemini is already enabled by default. Just add your API key to `.env`:
 ```javascript
-groq: {
-  enabled: true, // Change to true
-  // ...
-},
-together: {
-  enabled: true, // Change to true
+// In src/services/aiService.js - Gemini is already enabled
+gemini: {
+  enabled: true, // Already enabled
+  apiKey: process.env.REACT_APP_GEMINI_API_KEY || '',
+  model: 'gemini-1.5-flash', // Fast and free
   // ...
 }
 ```
+
+**Note**: The Coach Mode will automatically use Gemini if an API key is provided, otherwise it falls back to other AI providers or intelligent rule-based responses.
 
 ## How It Works
 
